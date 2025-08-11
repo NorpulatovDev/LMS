@@ -4,6 +4,7 @@ package com.example.LMS.controller;
 import com.example.LMS.model.Payment;
 import com.example.LMS.service.CourseService;
 import com.example.LMS.service.PaymentService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,7 +25,7 @@ public class PaymentController {
     }
 
     @PostMapping
-    public ResponseEntity<Payment> addPayment(@RequestBody Payment payment){
+    public ResponseEntity<Payment> addPayment(@Valid @RequestBody Payment payment){
         return ResponseEntity.ok(paymentService.addPayment(payment));
     }
 

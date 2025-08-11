@@ -3,6 +3,7 @@ package com.example.LMS.controller;
 
 import com.example.LMS.model.Teacher;
 import com.example.LMS.service.TeacherService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,7 +23,7 @@ public class TeacherController {
     }
 
     @PostMapping
-    public Teacher addTeacher(@RequestBody Teacher teacher){
+    public Teacher addTeacher(@Valid @RequestBody Teacher teacher){
         return teacherService.addTeacher(teacher);
     }
 }

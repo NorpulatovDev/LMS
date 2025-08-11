@@ -3,6 +3,7 @@ package com.example.LMS.controller;
 
 import com.example.LMS.model.Student;
 import com.example.LMS.service.StudentService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,7 +24,7 @@ public class StudentController {
     }
 
     @PostMapping
-    public ResponseEntity<Student> addStudent(@RequestBody Student student){
+    public ResponseEntity<Student> addStudent(@Valid @RequestBody Student student){
         return ResponseEntity.ok(studentService.addStudent(student));
     }
 }

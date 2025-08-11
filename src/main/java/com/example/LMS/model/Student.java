@@ -2,6 +2,7 @@ package com.example.LMS.model;
 
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.util.Set;
@@ -13,15 +14,15 @@ public class Student {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @NotBlank(message = "Student name is required!")
     private String name;
 
     private String email;
 
-    @Column(nullable = false)
+    @NotBlank(message = "Student phone number is required!")
     private String phone;
 
-    @Column(nullable = false)
+    @NotBlank(message = "Enrollment date is required!")
     private String enrollmentDate;
 
     @Column(nullable = false) // added

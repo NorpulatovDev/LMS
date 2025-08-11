@@ -2,6 +2,7 @@ package com.example.LMS.model;
 
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
@@ -12,17 +13,17 @@ public class Teacher {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @NotBlank(message = "Teacher name is required!")
     private String name;
     private String email;
 
-    @Column(nullable = false)
+    @NotBlank(message = "Teacher phone number is required!")
     private String phone;
 
-    @Column(nullable = false)
+    @NotBlank(message = "Salary is required!")
     private double salary;
 
-    @Column(nullable = false)
+    @NotBlank(message = "User role is required!")
     @Enumerated(EnumType.STRING)
     private UserRole userRole;
 }

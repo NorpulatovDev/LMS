@@ -2,6 +2,7 @@ package com.example.LMS.model;
 
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Entity
@@ -10,10 +11,10 @@ public class Payment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column(nullable = false)
+    @NotNull(message = "Student ID is required!")
     private Long studentId;
-    @Column(nullable = false)
+    @NotNull(message = "Amount is required!")
     private double amount;
-    @Column(nullable = false)
+    @NotNull(message = "Payment date is required!")
     private String paymentDate;
 }
