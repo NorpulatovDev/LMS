@@ -1,0 +1,16 @@
+package com.example.LMS.service;
+
+import com.example.LMS.model.Course;
+import com.example.LMS.repository.CourseRepository;
+
+import java.util.List;
+
+
+
+public interface CourseService {
+    public List<Course> getAllCourses();
+
+    public Course addCourse(Course course);
+
+    public void deleteCourse(Long id);
+}
