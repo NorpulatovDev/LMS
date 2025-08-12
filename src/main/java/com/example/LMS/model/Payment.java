@@ -2,7 +2,9 @@ package com.example.LMS.model;
 
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
 @Entity
@@ -14,7 +16,8 @@ public class Payment {
     @NotNull(message = "Student ID is required!")
     private Long studentId;
     @NotNull(message = "Amount is required!")
-    private double amount;
-    @NotNull(message = "Payment date is required!")
+    @Positive(message = "Amount must be positive!")
+    private Double amount;
+    @NotBlank(message = "Payment date is required!")
     private String paymentDate;
 }

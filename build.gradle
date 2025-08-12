@@ -1,6 +1,6 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.4.2'
+	id 'org.springframework.boot' version '3.3.2'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -9,13 +9,7 @@ version = '0.0.1-SNAPSHOT'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(23)
-	}
-}
-
-configurations {
-	compileOnly {
-		extendsFrom annotationProcessor
+		languageVersion = JavaLanguageVersion.of(17) // or 21 if you're using it
 	}
 }
 
@@ -24,16 +18,30 @@ repositories {
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	runtimeOnly 'org.postgresql:postgresql'
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// Spring Boot Web
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+
+	// Spring Data JPA
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+	// Validation
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	// Lombok
 	compileOnly 'org.projectlombok:lombok'
-	runtimeOnly 'com.h2database:h2'
 	annotationProcessor 'org.projectlombok:lombok'
+
+	// Database Driver (PostgreSQL example, change if using MySQL)
+	runtimeOnly 'org.postgresql:postgresql'
+	// runtimeOnly 'com.mysql:mysql-connector-j'  // If MySQL
+
+	// Swagger / OpenAPI for Spring Boot 3+
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+
+	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
+
 
 tasks.named('test') {
 	useJUnitPlatform()

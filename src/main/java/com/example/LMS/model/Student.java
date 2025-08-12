@@ -3,6 +3,7 @@ package com.example.LMS.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.Set;
@@ -25,7 +26,6 @@ public class Student {
     @NotBlank(message = "Enrollment date is required!")
     private String enrollmentDate;
 
-    @Column(nullable = false) // added
     @ManyToMany
     @JoinTable(
             name = "student_course",
@@ -34,6 +34,7 @@ public class Student {
     )
     private Set<Course> courses;
 
+    @NotNull(message = "User role is required!")
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole userRole;
