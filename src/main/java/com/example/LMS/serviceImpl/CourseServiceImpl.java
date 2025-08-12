@@ -1,5 +1,6 @@
 package com.example.LMS.serviceImpl;
 
+import com.example.LMS.exception.ResourceNotFoundException;
 import com.example.LMS.model.Course;
 import com.example.LMS.repository.CourseRepository;
 import com.example.LMS.service.CourseService;
@@ -11,7 +12,7 @@ import java.util.List;
 public class CourseServiceImpl implements CourseService {
     private final CourseRepository courseRepository;
 
-    public CourseServiceImpl(CourseRepository courseRepository){
+    public CourseServiceImpl(CourseRepository courseRepository) {
         this.courseRepository = courseRepository;
     }
 
@@ -22,16 +23,30 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    public Course getCourseById(Long id) {
+        return courseRepository.findById(id).orElseThrow(
+                () -> new ResourceNotFoundException("Course not found with id: " + id)
+        );
+    }
+
+    @Override
     public Course addCourse(Course course) {
         return courseRepository.save(course);
     }
 
     @Override
-    public void deleteCourse(Long id){
-        try{
-            courseRepository.deleteById(id);
-        } catch (RuntimeException e) {
-            throw new RuntimeException("Course not found!");
-        }
+    public void deleteCourse(Long id) {
+        Course existingCourse = getCourseById(id);
+        courseRepository.delete(existingCourse);
+    }
+
+    @Override
+    public Course updateCourse(Long id, Course courseDetails) {
+        Course existingCourse = getCourseById(id);
+        existingCourse.setName(courseDetails.getName());
+        existingCourse.setDescription(courseDetails.getDescription());
+        existingCourse.setFee(courseDetails.getFee());
+
+        return courseRepository.save(existingCourse);
     }
 }

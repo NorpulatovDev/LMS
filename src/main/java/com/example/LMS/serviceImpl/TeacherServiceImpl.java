@@ -1,5 +1,6 @@
 package com.example.LMS.serviceImpl;
 
+import com.example.LMS.exception.ResourceNotFoundException;
 import com.example.LMS.model.Teacher;
 import com.example.LMS.repository.TeacherRepository;
 import com.example.LMS.service.TeacherService;
@@ -22,7 +23,33 @@ public class TeacherServiceImpl implements TeacherService {
     }
 
     @Override
+    public Teacher getTeacherById(Long id) {
+        return teacherRepository.findById(id).orElseThrow(
+                ()-> new ResourceNotFoundException("Teacher not found with id: " + id)
+        );
+    }
+
+    @Override
     public Teacher addTeacher(Teacher teacher) {
         return teacherRepository.save(teacher);
+    }
+
+    @Override
+    public Teacher updateTeacher(Long id, Teacher teacherDetails) {
+        Teacher teacher = getTeacherById(id);
+        teacher.setEmail(teacher.getEmail());
+        teacher.setName(teacher.getName());
+        teacher.setSalary(teacher.getSalary());
+        teacher.setPhone(teacher.getPhone());
+        teacher.setUserRole(teacher.getUserRole());
+
+        return teacher;
+    }
+
+
+    @Override
+    public void deleteTeacher(Long id) {
+        Teacher teacher = getTeacherById(id);
+        teacherRepository.delete(teacher);
     }
 }
