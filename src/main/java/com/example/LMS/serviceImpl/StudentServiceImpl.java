@@ -43,7 +43,6 @@ public class StudentServiceImpl implements StudentService {
         student.setPhone(student.getPhone());
         student.setCourses(studentDetails.getCourses());
         student.setEnrollmentDate(studentDetails.getEnrollmentDate());
-        student.setUserRole(studentDetails.getUserRole());
 
         return student;
     }

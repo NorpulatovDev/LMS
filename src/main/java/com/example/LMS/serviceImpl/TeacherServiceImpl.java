@@ -41,7 +41,6 @@ public class TeacherServiceImpl implements TeacherService {
         teacher.setName(teacher.getName());
         teacher.setSalary(teacher.getSalary());
         teacher.setPhone(teacher.getPhone());
-        teacher.setUserRole(teacher.getUserRole());
 
         return teacher;
     }
