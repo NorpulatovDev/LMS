@@ -34,8 +34,4 @@ public class Student {
     )
     private Set<Course> courses;
 
-    @NotNull(message = "User role is required!")
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private UserRole userRole;
 }
