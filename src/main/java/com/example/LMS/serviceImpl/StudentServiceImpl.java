@@ -39,12 +39,12 @@ public class StudentServiceImpl implements StudentService {
     public Student updateStudent(Long id, Student studentDetails) {
         Student student = getStudentById(id);
         student.setName(studentDetails.getName());
-        student.setEmail(student.getEmail());
-        student.setPhone(student.getPhone());
+        student.setEmail(studentDetails.getEmail()); // ✅ FIXED: was student.getEmail()
+        student.setPhone(studentDetails.getPhone()); // ✅ FIXED: was student.getPhone()
         student.setCourses(studentDetails.getCourses());
         student.setEnrollmentDate(studentDetails.getEnrollmentDate());
 
-        return student;
+        return studentRepository.save(student); // ✅ FIXED: Added save()
     }
 
     @Override

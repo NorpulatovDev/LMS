@@ -1,6 +1,11 @@
 package com.example.LMS.controller;
 
+import com.example.LMS.exception.ResourceNotFoundException;
+import com.example.LMS.model.Payment;
+import com.example.LMS.model.Student;
 import com.example.LMS.model.Teacher;
+import com.example.LMS.repository.PaymentRepository;
+import com.example.LMS.repository.TeacherRepository;
 import com.example.LMS.service.TeacherService; // TeacherService ni o'zgartirishlar uchun
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -11,22 +16,91 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails; // Foydalanuvchi ma'lumotlari uchun
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @CrossOrigin
-@RequestMapping("/api/teachers") // API manzilini /api/teachers ga o'zgartiramiz
+@RequestMapping("/api/teachers")
 public class TeacherController {
 
     @Autowired
-    private TeacherService teacherService; // Autowired orqali bog'laymiz
+    private TeacherService teacherService;
+
+    @Autowired
+    private TeacherRepository teacherRepository;
+
+    @Autowired
+    private PaymentRepository paymentRepository;
+
 
     /**
-     * Barcha o'qituvchilar ro'yxatini qaytaradi.
-     * Faqat ADMIN yoki TEACHER roli ega bo'lgan foydalanuvchilar kira oladi.
-     * @return Barcha o'qituvchilar ro'yxati
+     * Get payments for teacher's courses
      */
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @GetMapping("/my-payments")
+    public ResponseEntity<List<Payment>> getMyPayments(Authentication auth) {
+        UserDetails currentUser = (UserDetails) auth.getPrincipal();
+        Teacher teacher = teacherRepository.findByUsername(currentUser.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found"));
+
+        List<Payment> payments = paymentRepository.findPaymentsByTeacherId(teacher.getId());
+        return ResponseEntity.ok(payments);
+    }
+
+    /**
+     * Get students who haven't paid for teacher's specific course
+     */
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @GetMapping("/my-payments/by-month")
+    public ResponseEntity<List<Payment>> getMyPaymentsByMonth(
+            @RequestParam(required = false) String month,
+            Authentication auth) {
+
+        UserDetails currentUser = (UserDetails) auth.getPrincipal();
+        Teacher teacher = teacherRepository.findByUsername(currentUser.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found"));
+
+        List<Payment> allPayments = paymentRepository.findPaymentsByTeacherId(teacher.getId());
+
+        // Filter by month if provided
+        if (month != null && !month.isEmpty()) {
+            allPayments = allPayments.stream()
+                    .filter(p -> month.equals(p.getPaymentMonth()))
+                    .collect(Collectors.toList());
+        }
+
+        return ResponseEntity.ok(allPayments);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @GetMapping("/unpaid-students/{courseId}")
+    public ResponseEntity<List<Student>> getUnpaidStudentsForCourse(
+            @PathVariable Long courseId,
+            @RequestParam(required = false) String month,
+            Authentication auth) {
+
+        UserDetails currentUser = (UserDetails) auth.getPrincipal();
+        Teacher teacher = teacherRepository.findByUsername(currentUser.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found"));
+
+        // Check if teacher teaches this course
+        if (!teacherRepository.teacherHasCourse(teacher.getId(), courseId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        // If month not provided, use current month
+        if (month == null || month.isEmpty()) {
+            month = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        }
+
+        List<Student> unpaidStudents = paymentRepository.findStudentsWithoutPayment(courseId, month);
+        return ResponseEntity.ok(unpaidStudents);
+    }
+
+
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     @GetMapping
     public ResponseEntity<List<Teacher>> getAllTeachers() {
@@ -34,19 +108,13 @@ public class TeacherController {
         return ResponseEntity.ok(teachers);
     }
 
-    /**
-     * Berilgan ID bo'yicha o'qituvchi ma'lumotlarini qaytaradi.
-     * TEACHER o'zining profilini, ADMIN esa har qanday o'qituvchining profilini ko'ra oladi.
-     * @param id O'qituvchining IDsi
-     * @return O'qituvchi ob'ekti
-     */
+
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     @GetMapping("/{id}")
     public ResponseEntity<Teacher> getTeacherById(@PathVariable Long id) {
-        // Hozirgi autentifikatsiya qilingan foydalanuvchi ma'lumotlarini olamiz
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof UserDetails)) {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED); // Autentifikatsiya qilinmagan
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
         }
 
         UserDetails currentUser = (UserDetails) authentication.getPrincipal();
@@ -56,16 +124,12 @@ public class TeacherController {
         Teacher teacher = teacherService.getTeacherById(id);
 
 
-        // Agar foydalanuvchi ADMIN bo'lmasa, faqat o'z profilini ko'rishiga ruxsat beramiz
         if (!isAdmin && !teacher.getUser().getUsername().equals(currentUser.getUsername())) {
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN); // Ruxsat yo'q
+            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         }
 
         return ResponseEntity.ok(teacher);
     }
 
-    // Add, Update, Delete metodlari AdminControllerga ko'chirildi
-    // @PostMapping
-    // @PutMapping
-    // @DeleteMapping
+
 }

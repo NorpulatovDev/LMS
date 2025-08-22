@@ -37,12 +37,12 @@ public class TeacherServiceImpl implements TeacherService {
     @Override
     public Teacher updateTeacher(Long id, Teacher teacherDetails) {
         Teacher teacher = getTeacherById(id);
-        teacher.setEmail(teacher.getEmail());
-        teacher.setName(teacher.getName());
-        teacher.setSalary(teacher.getSalary());
-        teacher.setPhone(teacher.getPhone());
+        teacher.setEmail(teacherDetails.getEmail()); // ✅ FIXED: was teacher.getEmail()
+        teacher.setName(teacherDetails.getName());   // ✅ FIXED: was teacher.getName()
+        teacher.setSalary(teacherDetails.getSalary()); // ✅ FIXED: was teacher.getSalary()
+        teacher.setPhone(teacherDetails.getPhone());   // ✅ FIXED: was teacher.getPhone()
 
-        return teacher;
+        return teacherRepository.save(teacher); // ✅ FIXED: Added save()
     }
 
 
