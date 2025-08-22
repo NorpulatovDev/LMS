@@ -14,7 +14,10 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     @Query("SELECT t FROM Teacher t JOIN t.user u WHERE u.username = :username")
     Optional<Teacher> findByUsername(@Param("username") String username);
 
-    // Check if teacher teaches a specific course
-//    @Query("SELECT COUNT(tc) > 0 FROM Teacher t JOIN t.courses c WHERE t.id = :teacherId AND c.id = :courseId")
-//    boolean teacherHasCourse(@Param("teacherId") Long teacherId, @Param("courseId") Long courseId);
+
+    // FIXED: Check if teacher teaches a specific course
+    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END " +
+            "FROM Teacher t JOIN t.courses c " +
+            "WHERE t.id = :teacherId AND c.id = :courseId")
+    boolean teacherHasCourse(@Param("teacherId") Long teacherId, @Param("courseId") Long courseId);
 }
