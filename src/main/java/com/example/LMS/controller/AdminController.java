@@ -156,7 +156,17 @@ public class AdminController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
 
-        teacherRepository.delete(optionalTeacher.get());
+        Teacher teacher = optionalTeacher.get();
+        User user = teacher.getUser(); // Get the associated user
+
+        // Delete teacher first (due to foreign key constraint)
+        teacherRepository.delete(teacher);
+
+        // Then delete the user
+        if (user != null) {
+            userRepository.delete(user);
+        }
+
         return ResponseEntity.noContent().build();
     }
 }
