@@ -33,7 +33,7 @@ public class StudentController {
 
     @PostMapping
     public ResponseEntity<Student> addStudent(@Valid @RequestBody StudentRequest student){
-        return ResponseEntity.ok(studentService.addStudent(student));
+        return ResponseEntity.ok(studentService.createStudent(student));
     }
 
     @PutMapping("/{id}")
