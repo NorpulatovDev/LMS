@@ -38,17 +38,16 @@ public class Course {
     @Schema(description = "Course fee in USD", example = "299.99", required = true)
     private Double fee;
 
-    // Teacher entity relationship - Many-to-Many
-    // Use @JsonIgnore to prevent infinite recursion during serialization
     @ManyToMany
     @JoinTable(
             name = "course_teacher",
             joinColumns = @JoinColumn(name = "course_id"),
             inverseJoinColumns = @JoinColumn(name = "teacher_id")
     )
-    @JsonIgnoreProperties("courses") // ignore the "courses" field from Teacher
-    private List<Teacher> teachers;
+    @JsonIgnoreProperties("courses")
+    private Set<Teacher> teachers = new HashSet<>();
 
-    // If you need to expose teachers in some responses, create a separate DTO or use a custom serializer
-    // For now, we'll keep it simple and hide the teachers relationship
+    @ManyToMany(mappedBy = "courses")
+    @JsonIgnoreProperties("courses")
+    private Set<Student> students = new HashSet<>();
 }
