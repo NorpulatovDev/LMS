@@ -1,5 +1,6 @@
 package com.example.LMS.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
@@ -41,7 +42,7 @@ public class Course {
     // Teacher entity relationship - Many-to-Many
     // Use @JsonIgnore to prevent infinite recursion during serialization
     @ManyToMany(mappedBy = "courses", fetch = FetchType.LAZY)
-    @JsonIgnore  // This prevents the circular reference issue
+    @JsonBackReference("teacher-courses")  // CHANGE TO JsonBackReference
     @ToString.Exclude  // Exclude from toString to avoid potential issues
     @EqualsAndHashCode.Exclude  // Exclude from equals/hashCode to avoid potential issues
     @Schema(description = "List of teachers assigned to this course (hidden in JSON responses)")

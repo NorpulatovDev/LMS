@@ -1,6 +1,7 @@
 package com.example.LMS.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -53,7 +54,7 @@ public class Teacher {
             joinColumns = @JoinColumn(name = "teacher_id"),
             inverseJoinColumns = @JoinColumn(name = "course_id")
     )
-    @JsonIgnore  // This prevents the circular reference issue
+    @JsonManagedReference("teacher-courses")  // KEEP as JsonManagedReference
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @Schema(description = "List of courses taught by this teacher (hidden in JSON responses)")
