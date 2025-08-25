@@ -46,6 +46,7 @@ public class CourseServiceImpl implements CourseService {
         existingCourse.setName(courseDetails.getName());
         existingCourse.setDescription(courseDetails.getDescription());
         existingCourse.setFee(courseDetails.getFee());
+        existingCourse.setTeachers(courseDetails.getTeachers());
 
         return courseRepository.save(existingCourse);
     }
