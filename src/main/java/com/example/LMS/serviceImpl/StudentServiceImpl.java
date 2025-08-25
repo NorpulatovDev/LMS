@@ -1,20 +1,27 @@
 package com.example.LMS.serviceImpl;
 
+import com.example.LMS.dto.StudentRequest;
 import com.example.LMS.exception.ResourceNotFoundException;
+import com.example.LMS.model.Course;
 import com.example.LMS.model.Student;
+import com.example.LMS.repository.CourseRepository;
 import com.example.LMS.repository.StudentRepository;
 import com.example.LMS.service.StudentService;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 
 @Service
 public class StudentServiceImpl implements StudentService {
     private final StudentRepository studentRepository;
+    private final CourseRepository courseRepository;
 
-    public StudentServiceImpl(StudentRepository studentRepository){
+    public StudentServiceImpl(StudentRepository studentRepository, CourseRepository courseRepository) {
         this.studentRepository = studentRepository;
+        this.courseRepository = courseRepository;
     }
 
 
@@ -31,7 +38,17 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
-    public Student addStudent(Student student) {
+    public Student addStudent(StudentRequest request) {
+        Student student = new Student();
+        student.setName(request.getName());
+        student.setEmail(request.getEmail());
+        student.setPhone(request.getPhone());
+        student.setEnrollmentDate(request.getEnrollmentDate());
+
+        if (request.getCourseIds() != null && !request.getCourseIds().isEmpty()) {
+            Set<Course> courses = new HashSet<>(courseRepository.findAllById(request.getCourseIds()));
+            student.setCourses(courses);
+        }
         return studentRepository.save(student);
     }
 

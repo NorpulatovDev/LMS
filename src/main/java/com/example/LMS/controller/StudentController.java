@@ -1,6 +1,7 @@
 package com.example.LMS.controller;
 
 
+import com.example.LMS.dto.StudentRequest;
 import com.example.LMS.model.Student;
 import com.example.LMS.service.StudentService;
 import jakarta.validation.Valid;
@@ -31,7 +32,7 @@ public class StudentController {
     }
 
     @PostMapping
-    public ResponseEntity<Student> addStudent(@Valid @RequestBody Student student){
+    public ResponseEntity<Student> addStudent(@Valid @RequestBody StudentRequest student){
         return ResponseEntity.ok(studentService.addStudent(student));
     }
 
