@@ -1,5 +1,6 @@
 package com.example.LMS.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -36,12 +37,7 @@ public class Teacher {
 
     // Course entitiysi bilan Many-to-Many bog'lanish
     // O'qituvchi dars beradigan kurslar
-    @ManyToMany(fetch = FetchType.LAZY) // Kurslar faqat kerak bo'lganda yuklanadi
-    @JoinTable(
-            name = "teacher_courses", // Bu bog'lanishni saqlovchi oraliq jadval nomi
-            joinColumns = @JoinColumn(name = "teacher_id"), // Teacher jadvalidagi ustun
-            inverseJoinColumns = @JoinColumn(name = "course_id") // Course jadvalidagi ustun
-    )
-    @JsonManagedReference("teacher-courses")  // KEEP as JsonManagedReference
+    @ManyToMany(mappedBy = "teachers")
+    @JsonIgnore   // KEEP as JsonManagedReference
     private Set<Course> courses = new HashSet<>(); // NullPointerException ni oldini olish uchun boshlang'ich qiymat
 }

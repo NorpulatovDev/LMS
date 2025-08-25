@@ -41,10 +41,12 @@ public class Course {
 
     // Teacher entity relationship - Many-to-Many
     // Use @JsonIgnore to prevent infinite recursion during serialization
-    @ManyToMany(mappedBy = "courses", fetch = FetchType.LAZY)
-    @JsonBackReference("teacher-courses")  // CHANGE TO JsonBackReference
-    @ToString.Exclude  // Exclude from toString to avoid potential issues
-    @EqualsAndHashCode.Exclude  // Exclude from equals/hashCode to avoid potential issues
+    @ManyToMany
+    @JoinTable(
+            name = "course_teacher",
+            joinColumns = @JoinColumn(name = "course_id"),
+            inverseJoinColumns = @JoinColumn(name = "teacher_id")
+    )
     @Schema(description = "List of teachers assigned to this course (hidden in JSON responses)")
     private Set<Teacher> teachers = new HashSet<>();
 
