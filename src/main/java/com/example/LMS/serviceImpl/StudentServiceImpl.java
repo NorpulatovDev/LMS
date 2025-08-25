@@ -37,8 +37,7 @@ public class StudentServiceImpl implements StudentService {
         );
     }
 
-    @Override
-    public Student addStudent(StudentRequest request) {
+    public Student createStudent(StudentRequest request) {
         Student student = new Student();
         student.setName(request.getName());
         student.setEmail(request.getEmail());
@@ -46,9 +45,10 @@ public class StudentServiceImpl implements StudentService {
         student.setEnrollmentDate(request.getEnrollmentDate());
 
         if (request.getCourseIds() != null && !request.getCourseIds().isEmpty()) {
-            Set<Course> courses = new HashSet<>(courseRepository.findAllById(request.getCourseIds()));
+            List<Course> courses = courseRepository.findAllById(request.getCourseIds());
             student.setCourses(courses);
         }
+
         return studentRepository.save(student);
     }
 

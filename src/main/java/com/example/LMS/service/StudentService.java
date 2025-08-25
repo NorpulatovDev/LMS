@@ -12,7 +12,7 @@ public interface StudentService {
 
     public Student getStudentById(Long id);
 
-    public Student addStudent(StudentRequest studentRequest);
+    public Student createStudent(StudentRequest studentRequest);
 
     public Student updateStudent(Long id, Student studentDetails);
 
