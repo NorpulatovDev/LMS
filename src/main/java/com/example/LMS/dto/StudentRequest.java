@@ -2,7 +2,7 @@ package com.example.LMS.dto;
 
 import lombok.Data;
 
-import java.util.List;
+import java.util.Set;
 
 @Data
 public class StudentRequest {
@@ -10,5 +10,5 @@ public class StudentRequest {
     private String email;
     private String phone;
     private String enrollmentDate;
-    private List<Long> courseIds;  // only course IDs, not full objects
+    private Set<Long> courseIds;  // only course IDs, not full objects
 }
