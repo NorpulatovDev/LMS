@@ -1,5 +1,6 @@
 package com.example.LMS.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -41,5 +42,6 @@ public class Teacher {
             joinColumns = @JoinColumn(name = "teacher_id"), // Teacher jadvalidagi ustun
             inverseJoinColumns = @JoinColumn(name = "course_id") // Course jadvalidagi ustun
     )
+    @JsonManagedReference
     private Set<Course> courses = new HashSet<>(); // NullPointerException ni oldini olish uchun boshlang'ich qiymat
 }

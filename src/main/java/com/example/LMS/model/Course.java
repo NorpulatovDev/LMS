@@ -1,5 +1,6 @@
 package com.example.LMS.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -29,5 +30,6 @@ public class Course {
     // Teacher entitiysi bilan Many-to-Many bog'lanish
     // Bu kursga dars beradigan o'qituvchilar
     @ManyToMany(mappedBy = "courses", fetch = FetchType.LAZY) // Teacher dagi "courses" maydoniga bog'lanadi
+    @JsonManagedReference
     private Set<Teacher> teachers = new HashSet<>(); // NullPointerException ni oldini olish uchun boshlang'ich qiymat
 }
