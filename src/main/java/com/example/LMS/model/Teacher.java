@@ -1,62 +1,47 @@
 package com.example.LMS.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.ToString;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashSet; // Set uchun import
+import java.util.Set;     // Set uchun import
 
 @Data
 @Entity
 @Table(name = "teachers")
-@Schema(description = "Teacher entity representing a teacher in the Learning Management System")
 public class Teacher {
 
     @Id
-    @Schema(description = "Unique identifier of the teacher", example = "1", accessMode = Schema.AccessMode.READ_ONLY)
     private Long id;
 
     @NotBlank(message = "Teacher name is required!")
-    @Schema(description = "Full name of the teacher", example = "Dr. John Smith", required = true)
     private String name;
-
-    @Schema(description = "Email address of the teacher", example = "john.smith@university.edu")
     private String email;
 
     @NotBlank(message = "Teacher phone number is required!")
-    @Schema(description = "Phone number of the teacher", example = "+1-555-123-4567", required = true)
     private String phone;
 
     @NotNull(message = "Salary is required!")
     @Positive(message = "Salary must be positive!")
-    @Schema(description = "Monthly salary of the teacher", example = "5000.00", required = true)
     private Double salary;
 
-    // User entity relationship - One-to-One
+    // User entitiysi bilan one-to-one bog'lanish
     @OneToOne
-    @MapsId
+    @MapsId // Teacher IDsi User IDsi bilan bir xil bo'ladi
     @JoinColumn(name = "id")
-    @JsonIgnore  // Hide user details in teacher responses for security
-    @Schema(description = "Associated user account (hidden for security)")
     private User user;
 
-    // Course entity relationship - Many-to-Many
-    @ManyToMany(fetch = FetchType.LAZY)
+    // Course entitiysi bilan Many-to-Many bog'lanish
+    // O'qituvchi dars beradigan kurslar
+    @ManyToMany(fetch = FetchType.LAZY) // Kurslar faqat kerak bo'lganda yuklanadi
     @JoinTable(
-            name = "teacher_courses",
-            joinColumns = @JoinColumn(name = "teacher_id"),
-            inverseJoinColumns = @JoinColumn(name = "course_id")
+            name = "teacher_courses", // Bu bog'lanishni saqlovchi oraliq jadval nomi
+            joinColumns = @JoinColumn(name = "teacher_id"), // Teacher jadvalidagi ustun
+            inverseJoinColumns = @JoinColumn(name = "course_id") // Course jadvalidagi ustun
     )
     @JsonManagedReference("teacher-courses")  // KEEP as JsonManagedReference
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    @Schema(description = "List of courses taught by this teacher (hidden in JSON responses)")
-    private Set<Course> courses = new HashSet<>();
+    private Set<Course> courses = new HashSet<>(); // NullPointerException ni oldini olish uchun boshlang'ich qiymat
 }
