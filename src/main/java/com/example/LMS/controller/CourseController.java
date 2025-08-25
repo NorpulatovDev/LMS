@@ -1,6 +1,7 @@
 package com.example.LMS.controller;
 
 import com.example.LMS.model.Course;
+import com.example.LMS.model.Student;
 import com.example.LMS.service.CourseService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,11 @@ public class CourseController {
     @GetMapping("/{id}")
     public ResponseEntity<Course> getCourseById(@PathVariable Long id){
         return ResponseEntity.ok(courseService.getCourseById(id));
+    }
+
+    @GetMapping("/{courseId}/students")
+    public ResponseEntity<List<Student>> getStudentsByCourse(@PathVariable Long courseId) {
+        return ResponseEntity.ok(courseService.getStudentsByCourseId(courseId));
     }
 
 
