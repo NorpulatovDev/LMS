@@ -1,6 +1,7 @@
 package com.example.LMS.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -8,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
 import java.util.HashSet; // Set uchun import
+import java.util.List;
 import java.util.Set;     // Set uchun import
 
 @Data
@@ -38,6 +40,6 @@ public class Teacher {
     // Course entitiysi bilan Many-to-Many bog'lanish
     // O'qituvchi dars beradigan kurslar
     @ManyToMany(mappedBy = "teachers")
-    @JsonIgnore   // KEEP as JsonManagedReference
-    private Set<Course> courses = new HashSet<>(); // NullPointerException ni oldini olish uchun boshlang'ich qiymat
+    @JsonIgnoreProperties("teachers") // ignore the "teachers" field from Course
+    private List<Course> courses; // NullPointerException ni oldini olish uchun boshlang'ich qiymat
 }

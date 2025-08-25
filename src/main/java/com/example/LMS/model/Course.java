@@ -1,7 +1,6 @@
 package com.example.LMS.model;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -9,9 +8,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.ToString;
+
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -47,8 +46,8 @@ public class Course {
             joinColumns = @JoinColumn(name = "course_id"),
             inverseJoinColumns = @JoinColumn(name = "teacher_id")
     )
-    @Schema(description = "List of teachers assigned to this course (hidden in JSON responses)")
-    private Set<Teacher> teachers = new HashSet<>();
+    @JsonIgnoreProperties("courses") // ignore the "courses" field from Teacher
+    private List<Teacher> teachers;
 
     // If you need to expose teachers in some responses, create a separate DTO or use a custom serializer
     // For now, we'll keep it simple and hide the teachers relationship
