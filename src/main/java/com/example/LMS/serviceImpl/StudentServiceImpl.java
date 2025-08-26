@@ -14,9 +14,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-
 @Service
-@Transactional
 public class StudentServiceImpl implements StudentService {
     private final StudentRepository studentRepository;
     private final CourseRepository courseRepository;
@@ -29,87 +27,70 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional(readOnly = true)
     public List<Student> getAllStudents() {
-        List<Student> students = studentRepository.findAll();
-        // Force loading of courses for each student
-        students.forEach(student -> {
-            if (student.getCourses() != null) {
-                student.getCourses().size(); // This forces lazy loading
-            }
-        });
-        return students;
+        return studentRepository.findAllWithCourses();
     }
 
     @Override
     @Transactional(readOnly = true)
     public Student getStudentById(Long id) {
-        Student student = studentRepository.findById(id).orElseThrow(
+        return studentRepository.findByIdWithCourses(id).orElseThrow(
                 () -> new ResourceNotFoundException("Student not found with id: " + id)
         );
-        // Force loading of courses
-        if (student.getCourses() != null) {
-            student.getCourses().size();
-        }
-        return student;
     }
 
     @Override
     @Transactional
     public Student createStudent(StudentRequest request) {
-        // Validate required fields
-        if (request.getName() == null || request.getName().trim().isEmpty()) {
-            throw new IllegalArgumentException("Student name is required");
-        }
-        if (request.getPhone() == null || request.getPhone().trim().isEmpty()) {
-            throw new IllegalArgumentException("Student phone is required");
-        }
+        System.out.println("=== Creating Student ===");
+        System.out.println("Name: " + request.getName());
+        System.out.println("Course IDs: " + request.getCourseIds());
 
+        // Create new student
         Student student = new Student();
-        student.setName(request.getName().trim());
-        student.setEmail(request.getEmail() != null ? request.getEmail().trim() : null);
-        student.setPhone(request.getPhone().trim());
+        student.setName(request.getName());
+        student.setEmail(request.getEmail());
+        student.setPhone(request.getPhone());
 
         // Set enrollment date
         if (request.getEnrollmentDate() == null || request.getEnrollmentDate().trim().isEmpty()) {
             student.setEnrollmentDate(LocalDate.now().toString());
         } else {
-            student.setEnrollmentDate(request.getEnrollmentDate().trim());
+            student.setEnrollmentDate(request.getEnrollmentDate());
         }
 
-        // Initialize courses list
-        student.setCourses(new ArrayList<>());
+        // FIRST: Save the student without courses
+        Student savedStudent = studentRepository.save(student);
+        System.out.println("Student saved with ID: " + savedStudent.getId());
 
-        // Handle courses if provided
+        // SECOND: Handle courses if provided
         if (request.getCourseIds() != null && !request.getCourseIds().isEmpty()) {
-            System.out.println("Processing course IDs: " + request.getCourseIds()); // Debug log
+            List<Course> coursesToAdd = new ArrayList<>();
 
-            List<Course> courses = new ArrayList<>();
             for (Long courseId : request.getCourseIds()) {
                 Course course = courseRepository.findById(courseId)
                         .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
-                courses.add(course);
-                System.out.println("Added course: " + course.getName()); // Debug log
+                coursesToAdd.add(course);
+                System.out.println("Found course: " + course.getName() + " (ID: " + course.getId() + ")");
             }
-            student.setCourses(courses);
+
+            // Set courses and save again
+            savedStudent.setCourses(coursesToAdd);
+            savedStudent = studentRepository.save(savedStudent);
+
+            System.out.println("Student updated with " + coursesToAdd.size() + " courses");
         }
 
-        // Save student first
-        Student savedStudent = studentRepository.save(student);
-        System.out.println("Student saved with ID: " + savedStudent.getId()); // Debug log
-
-        // Flush to ensure data is written to database
+        // Force flush to database
         studentRepository.flush();
 
-        // Clear the persistence context and reload to ensure fresh data
-        Student reloadedStudent = studentRepository.findById(savedStudent.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Failed to reload saved student"));
+        // Reload student with courses
+        Student finalStudent = studentRepository.findByIdWithCourses(savedStudent.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Could not reload student"));
 
-        // Force loading of courses
-        if (reloadedStudent.getCourses() != null) {
-            reloadedStudent.getCourses().size();
-            System.out.println("Reloaded student courses count: " + reloadedStudent.getCourses().size()); // Debug log
-        }
+        System.out.println("Final student courses count: " +
+                (finalStudent.getCourses() != null ? finalStudent.getCourses().size() : 0));
 
-        return reloadedStudent;
+        return finalStudent;
     }
 
     @Override
@@ -124,30 +105,18 @@ public class StudentServiceImpl implements StudentService {
         existingStudent.setPhone(studentDetails.getPhone());
         existingStudent.setEnrollmentDate(studentDetails.getEnrollmentDate());
 
-        // Clear existing courses and add new ones
-        if (existingStudent.getCourses() != null) {
-            existingStudent.getCourses().clear();
+        // Update courses
+        if (studentDetails.getCourses() != null) {
+            existingStudent.setCourses(new ArrayList<>(studentDetails.getCourses()));
         } else {
             existingStudent.setCourses(new ArrayList<>());
-        }
-
-        if (studentDetails.getCourses() != null && !studentDetails.getCourses().isEmpty()) {
-            existingStudent.getCourses().addAll(studentDetails.getCourses());
         }
 
         Student savedStudent = studentRepository.save(existingStudent);
         studentRepository.flush();
 
-        // Reload to ensure fresh data
-        Student reloadedStudent = studentRepository.findById(savedStudent.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Failed to reload updated student"));
-
-        // Force loading of courses
-        if (reloadedStudent.getCourses() != null) {
-            reloadedStudent.getCourses().size();
-        }
-
-        return reloadedStudent;
+        return studentRepository.findByIdWithCourses(savedStudent.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Could not reload updated student"));
     }
 
     @Override

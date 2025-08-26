@@ -8,8 +8,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
-import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -17,12 +18,13 @@ import java.util.Set;
 @Entity
 @Data
 @Table(name = "courses")
-@ToString(exclude = {"teachers", "students"}) // Prevent circular toString
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Schema(description = "Course entity representing a course in the Learning Management System")
 public class Course {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     @Schema(description = "Unique identifier of the course", example = "1", accessMode = Schema.AccessMode.READ_ONLY)
     private Long id;
 
@@ -47,19 +49,18 @@ public class Course {
             inverseJoinColumns = @JoinColumn(name = "teacher_id")
     )
     @JsonIgnoreProperties({"courses", "user"})
-    private Set<Teacher> teachers = new HashSet<>();
+    private Set<Teacher> teachers;
 
     @ManyToMany(mappedBy = "courses", fetch = FetchType.LAZY)
     @JsonIgnoreProperties({"courses"})
-    private Set<Student> students = new HashSet<>();
+    private List<Student> students;
 
-    // Default constructor
+    // Constructors
     public Course() {
         this.teachers = new HashSet<>();
-        this.students = new HashSet<>();
+        this.students = new ArrayList<>();
     }
 
-    // Constructor with basic fields
     public Course(String name, String description, Double fee) {
         this();
         this.name = name;
@@ -67,17 +68,39 @@ public class Course {
         this.fee = fee;
     }
 
-    // Override equals and hashCode for proper entity comparison
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        Course course = (Course) obj;
-        return id != null && id.equals(course.id);
+    // Helper methods
+    public void addStudent(Student student) {
+        if (this.students == null) {
+            this.students = new ArrayList<>();
+        }
+        if (!this.students.contains(student)) {
+            this.students.add(student);
+            if (student.getCourses() != null && !student.getCourses().contains(this)) {
+                student.getCourses().add(this);
+            }
+        }
     }
 
-    @Override
-    public int hashCode() {
-        return getClass().hashCode();
+    public void removeStudent(Student student) {
+        if (this.students != null) {
+            this.students.remove(student);
+            if (student.getCourses() != null) {
+                student.getCourses().remove(this);
+            }
+        }
+    }
+
+    public List<Student> getStudents() {
+        if (this.students == null) {
+            this.students = new ArrayList<>();
+        }
+        return this.students;
+    }
+
+    public Set<Teacher> getTeachers() {
+        if (this.teachers == null) {
+            this.teachers = new HashSet<>();
+        }
+        return this.teachers;
     }
 }

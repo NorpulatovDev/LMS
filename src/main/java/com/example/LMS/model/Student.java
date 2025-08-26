@@ -1,11 +1,10 @@
 package com.example.LMS.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
-import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,10 +12,11 @@ import java.util.List;
 @Data
 @Entity
 @Table(name = "students")
-@ToString(exclude = "courses") // Prevent circular toString
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Student {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     @NotBlank(message = "Student name is required!")
@@ -34,21 +34,21 @@ public class Student {
     @Column(nullable = false)
     private String enrollmentDate;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE})
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
     @JoinTable(
             name = "student_course",
-            joinColumns = @JoinColumn(name = "student_id", referencedColumnName = "id"),
-            inverseJoinColumns = @JoinColumn(name = "course_id", referencedColumnName = "id")
+            joinColumns = @JoinColumn(name = "student_id"),
+            inverseJoinColumns = @JoinColumn(name = "course_id"),
+            uniqueConstraints = @UniqueConstraint(columnNames = {"student_id", "course_id"})
     )
-    @JsonIgnoreProperties({"students", "teachers"}) // Prevent circular reference
-    private List<Course> courses = new ArrayList<>();
+    @JsonIgnoreProperties({"students", "teachers"})
+    private List<Course> courses;
 
-    // Default constructor
+    // Constructors
     public Student() {
         this.courses = new ArrayList<>();
     }
 
-    // Constructor with basic fields
     public Student(String name, String email, String phone, String enrollmentDate) {
         this();
         this.name = name;
@@ -57,39 +57,46 @@ public class Student {
         this.enrollmentDate = enrollmentDate;
     }
 
-    // Helper methods
+    // Helper methods for managing courses
     public void addCourse(Course course) {
         if (this.courses == null) {
             this.courses = new ArrayList<>();
         }
         if (!this.courses.contains(course)) {
             this.courses.add(course);
+            // Maintain bidirectional relationship
+            if (course.getStudents() != null && !course.getStudents().contains(this)) {
+                course.getStudents().add(this);
+            }
         }
     }
 
     public void removeCourse(Course course) {
         if (this.courses != null) {
             this.courses.remove(course);
+            // Maintain bidirectional relationship
+            if (course.getStudents() != null) {
+                course.getStudents().remove(this);
+            }
         }
     }
 
-    public void clearCourses() {
-        if (this.courses != null) {
+    public void setCourses(List<Course> courses) {
+        if (this.courses == null) {
+            this.courses = new ArrayList<>();
+        } else {
             this.courses.clear();
         }
+
+        if (courses != null) {
+            this.courses.addAll(courses);
+        }
     }
 
-    // Override equals and hashCode for proper entity comparison
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        Student student = (Student) obj;
-        return id != null && id.equals(student.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return getClass().hashCode();
+    public List<Course> getCourses() {
+        if (this.courses == null) {
+            this.courses = new ArrayList<>();
+        }
+        return this.courses;
     }
 }
