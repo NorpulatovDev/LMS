@@ -8,13 +8,17 @@ import com.example.LMS.repository.CourseRepository;
 import com.example.LMS.repository.StudentRepository;
 import com.example.LMS.service.StudentService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 
 @Service
+@Transactional
 public class StudentServiceImpl implements StudentService {
     private final StudentRepository studentRepository;
     private final CourseRepository courseRepository;
@@ -37,31 +41,60 @@ public class StudentServiceImpl implements StudentService {
         );
     }
 
+    @Override
+    @Transactional
     public Student createStudent(StudentRequest request) {
         Student student = new Student();
         student.setName(request.getName());
         student.setEmail(request.getEmail());
         student.setPhone(request.getPhone());
-        student.setEnrollmentDate(request.getEnrollmentDate());
 
-        if (request.getCourseIds() != null && !request.getCourseIds().isEmpty()) {
-            List<Course> courses = courseRepository.findAllById(request.getCourseIds());
-            student.setCourses(courses);
+        // Set enrollment date - use current date if not provided
+        if (request.getEnrollmentDate() == null || request.getEnrollmentDate().isEmpty()) {
+            student.setEnrollmentDate(LocalDate.now().toString());
+        } else {
+            student.setEnrollmentDate(request.getEnrollmentDate());
         }
 
-        return studentRepository.save(student);
+        // Handle courses - Initialize as empty list if null
+        List<Course> courses = new ArrayList<>();
+        if (request.getCourseIds() != null && !request.getCourseIds().isEmpty()) {
+            courses = courseRepository.findAllById(request.getCourseIds());
+            if (courses.size() != request.getCourseIds().size()) {
+                throw new ResourceNotFoundException("One or more courses not found");
+            }
+        }
+        student.setCourses(courses);
+
+        // Save student
+        Student savedStudent = studentRepository.save(student);
+
+        // Fetch the saved student with courses to ensure proper loading
+        return studentRepository.findById(savedStudent.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Failed to save student"));
     }
 
     @Override
+    @Transactional
     public Student updateStudent(Long id, Student studentDetails) {
-        Student student = getStudentById(id);
-        student.setName(studentDetails.getName());
-        student.setEmail(studentDetails.getEmail()); // ✅ FIXED: was student.getEmail()
-        student.setPhone(studentDetails.getPhone()); // ✅ FIXED: was student.getPhone()
-        student.setCourses(studentDetails.getCourses());
-        student.setEnrollmentDate(studentDetails.getEnrollmentDate());
+        Student existingStudent = getStudentById(id);
 
-        return studentRepository.save(student); // ✅ FIXED: Added save()
+        // Update basic fields
+        existingStudent.setName(studentDetails.getName());
+        existingStudent.setEmail(studentDetails.getEmail());
+        existingStudent.setPhone(studentDetails.getPhone());
+        existingStudent.setEnrollmentDate(studentDetails.getEnrollmentDate());
+
+        // Update courses if provided
+        if (studentDetails.getCourses() != null) {
+            existingStudent.setCourses(studentDetails.getCourses());
+        }
+
+        Student savedStudent = studentRepository.save(existingStudent);
+
+        // Return the updated student with properly loaded courses
+        return studentRepository.findById(savedStudent.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Failed to update student"));
     }
 
     @Override
