@@ -20,7 +20,6 @@ public class Student {
     @Column(nullable = false)
     private String name;
 
-    @Column(unique = true)
     private String email;
 
     @NotBlank(message = "Student phone number is required!")
