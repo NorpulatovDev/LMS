@@ -57,14 +57,12 @@ public class StudentServiceImpl implements StudentService {
         }
 
         // Handle courses - Initialize as empty list if null
-        List<Course> courses = new ArrayList<>();
-        if (request.getCourseIds() != null && !request.getCourseIds().isEmpty()) {
-            courses = courseRepository.findAllById(request.getCourseIds());
-            if (courses.size() != request.getCourseIds().size()) {
-                throw new ResourceNotFoundException("One or more courses not found");
-            }
+        Course course = new Course();
+        if (request.getCourseId() != null) {
+            course = courseRepository.findById(request.getCourseId()).orElseThrow();
+
         }
-        student.setCourses(courses);
+        student.getCourses().add(course);
 
         // Save student
         Student savedStudent = studentRepository.save(student);

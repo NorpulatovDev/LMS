@@ -58,9 +58,9 @@ public class StudentController {
             studentDetails.setEnrollmentDate(studentRequest.getEnrollmentDate());
 
             // Handle courses
-            if (studentRequest.getCourseIds() != null && !studentRequest.getCourseIds().isEmpty()) {
-                List<Course> courses = courseRepository.findAllById(studentRequest.getCourseIds());
-                studentDetails.setCourses(courses);
+            if (studentRequest.getCourseId() != null) {
+                Course course = courseRepository.findById(studentRequest.getCourseId()).orElseThrow();
+                studentDetails.getCourses().add(course);
             } else {
                 studentDetails.setCourses(new ArrayList<>());
             }

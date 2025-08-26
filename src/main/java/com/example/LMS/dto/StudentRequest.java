@@ -10,5 +10,5 @@ public class StudentRequest {
     private String email;
     private String phone;
     private String enrollmentDate;
-    private Set<Long> courseIds;  // only course IDs, not full objects
+    private Long courseId;  // only course IDs, not full objects
 }
