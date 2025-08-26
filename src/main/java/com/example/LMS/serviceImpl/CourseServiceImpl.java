@@ -69,14 +69,10 @@ public class CourseServiceImpl implements CourseService {
     @Override
     @Transactional(readOnly = true)
     public List<Student> getStudentsByCourseId(Long courseId) {
-        Course course = getCourseById(courseId);
+        // Verify course exists
+        getCourseById(courseId);
 
-        // Get all students who are enrolled in this course
-        List<Student> allStudents = studentRepository.findAll();
-
-        return allStudents.stream()
-                .filter(student -> student.getCourses().stream()
-                        .anyMatch(c -> c.getId().equals(courseId)))
-                .collect(Collectors.toList());
+        // Use the repository method to find students by course ID
+        return studentRepository.findStudentsByCourseId(courseId);
     }
 }
