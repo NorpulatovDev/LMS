@@ -1,15 +1,16 @@
 package com.example.LMS.dto;
 
 import lombok.Data;
+import lombok.ToString;
 
-import java.util.List;
 import java.util.Set;
 
 @Data
+@ToString
 public class StudentRequest {
     private String name;
     private String email;
     private String phone;
     private String enrollmentDate;
-    private Set<Long> courseIds;  // only course IDs, not full objects
+    private Set<Long> courseIds;  // Using Set instead of List for better uniqueness
 }

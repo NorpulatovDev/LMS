@@ -7,24 +7,25 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 @Entity
-@Data
 @Table(name = "courses")
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Schema(description = "Course entity representing a course in the Learning Management System")
 public class Course {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @EqualsAndHashCode.Include
     @Schema(description = "Unique identifier of the course", example = "1", accessMode = Schema.AccessMode.READ_ONLY)
     private Long id;
 
@@ -49,58 +50,41 @@ public class Course {
             inverseJoinColumns = @JoinColumn(name = "teacher_id")
     )
     @JsonIgnoreProperties({"courses", "user"})
-    private Set<Teacher> teachers;
+    private Set<Teacher> teachers = new HashSet<>();
 
     @ManyToMany(mappedBy = "courses", fetch = FetchType.LAZY)
     @JsonIgnoreProperties({"courses"})
-    private List<Student> students;
-
-    // Constructors
-    public Course() {
-        this.teachers = new HashSet<>();
-        this.students = new ArrayList<>();
-    }
+    private Set<Student> students = new HashSet<>();
 
     public Course(String name, String description, Double fee) {
-        this();
         this.name = name;
         this.description = description;
         this.fee = fee;
+        this.teachers = new HashSet<>();
+        this.students = new HashSet<>();
     }
 
-    // Helper methods
-    public void addStudent(Student student) {
-        if (this.students == null) {
-            this.students = new ArrayList<>();
-        }
-        if (!this.students.contains(student)) {
-            this.students.add(student);
-            if (student.getCourses() != null && !student.getCourses().contains(this)) {
-                student.getCourses().add(this);
-            }
-        }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Course)) return false;
+        Course course = (Course) o;
+        return id != null && id.equals(course.getId());
     }
 
-    public void removeStudent(Student student) {
-        if (this.students != null) {
-            this.students.remove(student);
-            if (student.getCourses() != null) {
-                student.getCourses().remove(this);
-            }
-        }
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 
-    public List<Student> getStudents() {
-        if (this.students == null) {
-            this.students = new ArrayList<>();
-        }
-        return this.students;
-    }
-
-    public Set<Teacher> getTeachers() {
-        if (this.teachers == null) {
-            this.teachers = new HashSet<>();
-        }
-        return this.teachers;
+    @Override
+    public String toString() {
+        return "Course{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", description='" + description + '\'' +
+                ", fee=" + fee +
+                ", studentsCount=" + (students != null ? students.size() : 0) +
+                '}';
     }
 }

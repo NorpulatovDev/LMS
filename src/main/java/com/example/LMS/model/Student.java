@@ -3,20 +3,23 @@ package com.example.LMS.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
-@Data
 @Entity
 @Table(name = "students")
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class Student {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @EqualsAndHashCode.Include
     private Long id;
 
     @NotBlank(message = "Student name is required!")
@@ -34,69 +37,56 @@ public class Student {
     @Column(nullable = false)
     private String enrollmentDate;
 
-    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "student_course",
             joinColumns = @JoinColumn(name = "student_id"),
-            inverseJoinColumns = @JoinColumn(name = "course_id"),
-            uniqueConstraints = @UniqueConstraint(columnNames = {"student_id", "course_id"})
+            inverseJoinColumns = @JoinColumn(name = "course_id")
     )
     @JsonIgnoreProperties({"students", "teachers"})
-    private List<Course> courses;
-
-    // Constructors
-    public Student() {
-        this.courses = new ArrayList<>();
-    }
+    private Set<Course> courses = new HashSet<>();
 
     public Student(String name, String email, String phone, String enrollmentDate) {
-        this();
         this.name = name;
         this.email = email;
         this.phone = phone;
         this.enrollmentDate = enrollmentDate;
+        this.courses = new HashSet<>();
     }
 
-    // Helper methods for managing courses
+    // Helper methods
     public void addCourse(Course course) {
-        if (this.courses == null) {
-            this.courses = new ArrayList<>();
-        }
-        if (!this.courses.contains(course)) {
-            this.courses.add(course);
-            // Maintain bidirectional relationship
-            if (course.getStudents() != null && !course.getStudents().contains(this)) {
-                course.getStudents().add(this);
-            }
-        }
+        this.courses.add(course);
+        course.getStudents().add(this);
     }
 
     public void removeCourse(Course course) {
-        if (this.courses != null) {
-            this.courses.remove(course);
-            // Maintain bidirectional relationship
-            if (course.getStudents() != null) {
-                course.getStudents().remove(this);
-            }
-        }
+        this.courses.remove(course);
+        course.getStudents().remove(this);
     }
 
-    public void setCourses(List<Course> courses) {
-        if (this.courses == null) {
-            this.courses = new ArrayList<>();
-        } else {
-            this.courses.clear();
-        }
-
-        if (courses != null) {
-            this.courses.addAll(courses);
-        }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Student)) return false;
+        Student student = (Student) o;
+        return id != null && id.equals(student.getId());
     }
 
-    public List<Course> getCourses() {
-        if (this.courses == null) {
-            this.courses = new ArrayList<>();
-        }
-        return this.courses;
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return "Student{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", email='" + email + '\'' +
+                ", phone='" + phone + '\'' +
+                ", enrollmentDate='" + enrollmentDate + '\'' +
+                ", coursesCount=" + (courses != null ? courses.size() : 0) +
+                '}';
     }
 }

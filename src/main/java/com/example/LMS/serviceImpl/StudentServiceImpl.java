@@ -11,10 +11,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
+@Transactional
 public class StudentServiceImpl implements StudentService {
     private final StudentRepository studentRepository;
     private final CourseRepository courseRepository;
@@ -27,13 +29,13 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional(readOnly = true)
     public List<Student> getAllStudents() {
-        return studentRepository.findAllWithCourses();
+        return studentRepository.findAll();
     }
 
     @Override
     @Transactional(readOnly = true)
     public Student getStudentById(Long id) {
-        return studentRepository.findByIdWithCourses(id).orElseThrow(
+        return studentRepository.findById(id).orElseThrow(
                 () -> new ResourceNotFoundException("Student not found with id: " + id)
         );
     }
@@ -41,89 +43,90 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional
     public Student createStudent(StudentRequest request) {
-        System.out.println("=== Creating Student ===");
-        System.out.println("Name: " + request.getName());
-        System.out.println("Course IDs: " + request.getCourseIds());
+        System.out.println("Creating student with request: " + request);
 
-        // Create new student
+        // Create student entity
         Student student = new Student();
         student.setName(request.getName());
         student.setEmail(request.getEmail());
         student.setPhone(request.getPhone());
 
-        // Set enrollment date
         if (request.getEnrollmentDate() == null || request.getEnrollmentDate().trim().isEmpty()) {
             student.setEnrollmentDate(LocalDate.now().toString());
         } else {
             student.setEnrollmentDate(request.getEnrollmentDate());
         }
 
-        // FIRST: Save the student without courses
-        Student savedStudent = studentRepository.save(student);
-        System.out.println("Student saved with ID: " + savedStudent.getId());
-
-        // SECOND: Handle courses if provided
+        // Handle courses
+        Set<Course> courses = new HashSet<>();
         if (request.getCourseIds() != null && !request.getCourseIds().isEmpty()) {
-            List<Course> coursesToAdd = new ArrayList<>();
+            System.out.println("Processing course IDs: " + request.getCourseIds());
 
             for (Long courseId : request.getCourseIds()) {
                 Course course = courseRepository.findById(courseId)
                         .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
-                coursesToAdd.add(course);
-                System.out.println("Found course: " + course.getName() + " (ID: " + course.getId() + ")");
+                courses.add(course);
+                System.out.println("Added course: " + course.getName());
             }
-
-            // Set courses and save again
-            savedStudent.setCourses(coursesToAdd);
-            savedStudent = studentRepository.save(savedStudent);
-
-            System.out.println("Student updated with " + coursesToAdd.size() + " courses");
         }
 
-        // Force flush to database
-        studentRepository.flush();
+        student.setCourses(courses);
 
-        // Reload student with courses
-        Student finalStudent = studentRepository.findByIdWithCourses(savedStudent.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Could not reload student"));
+        // Save student with courses
+        Student savedStudent = studentRepository.save(student);
+        System.out.println("Saved student: " + savedStudent);
+        System.out.println("Student courses count: " + savedStudent.getCourses().size());
 
-        System.out.println("Final student courses count: " +
-                (finalStudent.getCourses() != null ? finalStudent.getCourses().size() : 0));
-
-        return finalStudent;
+        return savedStudent;
     }
 
     @Override
     @Transactional
     public Student updateStudent(Long id, Student studentDetails) {
-        Student existingStudent = studentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + id));
+        Student existingStudent = getStudentById(id);
 
-        // Update basic fields
         existingStudent.setName(studentDetails.getName());
         existingStudent.setEmail(studentDetails.getEmail());
         existingStudent.setPhone(studentDetails.getPhone());
         existingStudent.setEnrollmentDate(studentDetails.getEnrollmentDate());
 
-        // Update courses
         if (studentDetails.getCourses() != null) {
-            existingStudent.setCourses(new ArrayList<>(studentDetails.getCourses()));
-        } else {
-            existingStudent.setCourses(new ArrayList<>());
+            existingStudent.setCourses(new HashSet<>(studentDetails.getCourses()));
         }
 
-        Student savedStudent = studentRepository.save(existingStudent);
-        studentRepository.flush();
-
-        return studentRepository.findByIdWithCourses(savedStudent.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Could not reload updated student"));
+        return studentRepository.save(existingStudent);
     }
 
     @Override
     @Transactional
     public void deleteStudent(Long id) {
-        Student student = studentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + id));
+        Student student = getStudentById(id);
         studentRepository.delete(student);
+    }
+
+    // Additional method to add student to course
+    @Transactional
+    public Student addStudentToCourse(Long studentId, Long courseId) {
+        Student student = getStudentById(studentId);
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
+
+        student.getCourses().add(course);
+        course.getStudents().add(student);
+
+        return studentRepository.save(student);
+    }
+
+    // Additional method to remove student from course
+    @Transactional
+    public Student removeStudentFromCourse(Long studentId, Long courseId) {
+        Student student = getStudentById(studentId);
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
+
+        student.getCourses().remove(course);
+        course.getStudents().remove(student);
+
+        return studentRepository.save(student);
     }
 }

@@ -6,28 +6,32 @@ import com.example.LMS.model.Course;
 import com.example.LMS.model.Student;
 import com.example.LMS.repository.CourseRepository;
 import com.example.LMS.service.StudentService;
+import com.example.LMS.serviceImpl.StudentServiceImpl;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
 
 @RestController
 @CrossOrigin
 @RequestMapping("/students")
 public class StudentController {
     private final StudentService studentService;
+    private final StudentServiceImpl studentServiceImpl;
 
     @Autowired
     private CourseRepository courseRepository;
 
-    public StudentController(StudentService studentService){
+    public StudentController(StudentService studentService, StudentServiceImpl studentServiceImpl){
         this.studentService = studentService;
+        this.studentServiceImpl = studentServiceImpl;
     }
 
     @GetMapping
@@ -58,47 +62,42 @@ public class StudentController {
     public ResponseEntity<?> addStudent(@Valid @RequestBody StudentRequest studentRequest){
         try {
             System.out.println("Received student request: " + studentRequest);
-            System.out.println("Course IDs: " + studentRequest.getCourseIds());
 
             // Validate the request
             if (studentRequest.getName() == null || studentRequest.getName().trim().isEmpty()) {
-                Map<String, String> error = new HashMap<>();
-                error.put("error", "Student name is required");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Student name is required"));
             }
 
             if (studentRequest.getPhone() == null || studentRequest.getPhone().trim().isEmpty()) {
-                Map<String, String> error = new HashMap<>();
-                error.put("error", "Student phone is required");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Student phone is required"));
             }
 
             // Validate course IDs if provided
             if (studentRequest.getCourseIds() != null && !studentRequest.getCourseIds().isEmpty()) {
                 for (Long courseId : studentRequest.getCourseIds()) {
                     if (!courseRepository.existsById(courseId)) {
-                        Map<String, String> error = new HashMap<>();
-                        error.put("error", "Course with ID " + courseId + " not found");
-                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(Map.of("error", "Course with ID " + courseId + " not found"));
                     }
                 }
             }
 
             Student createdStudent = studentService.createStudent(studentRequest);
-            System.out.println("Created student with courses: " +
-                    (createdStudent.getCourses() != null ? createdStudent.getCourses().size() : 0));
+            System.out.println("Created student: " + createdStudent);
+            System.out.println("Student courses: " + createdStudent.getCourses().size());
 
             return ResponseEntity.status(HttpStatus.CREATED).body(createdStudent);
+
         } catch (ResourceNotFoundException e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             System.err.println("Error creating student: " + e.getMessage());
             e.printStackTrace();
-            Map<String, String> error = new HashMap<>();
-            error.put("error", "Internal server error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error: " + e.getMessage()));
         }
     }
 
@@ -108,7 +107,7 @@ public class StudentController {
             System.out.println("Updating student with ID: " + id);
             System.out.println("Update request: " + studentRequest);
 
-            // Convert StudentRequest to Student for update
+            // Convert StudentRequest to Student
             Student studentDetails = new Student();
             studentDetails.setName(studentRequest.getName());
             studentDetails.setEmail(studentRequest.getEmail());
@@ -116,7 +115,7 @@ public class StudentController {
             studentDetails.setEnrollmentDate(studentRequest.getEnrollmentDate());
 
             // Handle courses
-            List<Course> courses = new ArrayList<>();
+            Set<Course> courses = new HashSet<>();
             if (studentRequest.getCourseIds() != null && !studentRequest.getCourseIds().isEmpty()) {
                 for (Long courseId : studentRequest.getCourseIds()) {
                     Course course = courseRepository.findById(courseId)
@@ -127,20 +126,17 @@ public class StudentController {
             studentDetails.setCourses(courses);
 
             Student updatedStudent = studentService.updateStudent(id, studentDetails);
-            System.out.println("Updated student with courses: " +
-                    (updatedStudent.getCourses() != null ? updatedStudent.getCourses().size() : 0));
+            System.out.println("Updated student with courses: " + updatedStudent.getCourses().size());
 
             return ResponseEntity.ok(updatedStudent);
         } catch (ResourceNotFoundException e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             System.err.println("Error updating student: " + e.getMessage());
             e.printStackTrace();
-            Map<String, String> error = new HashMap<>();
-            error.put("error", "Internal server error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error: " + e.getMessage()));
         }
     }
 
@@ -150,15 +146,41 @@ public class StudentController {
             studentService.deleteStudent(id);
             return ResponseEntity.noContent().build();
         } catch (ResourceNotFoundException e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             System.err.println("Error deleting student: " + e.getMessage());
-            Map<String, String> error = new HashMap<>();
-            error.put("error", "Internal server error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error: " + e.getMessage()));
+        }
+    }
 
+    // Additional endpoints for course management
+    @PostMapping("/{studentId}/courses/{courseId}")
+    public ResponseEntity<?> addStudentToCourse(@PathVariable Long studentId, @PathVariable Long courseId) {
+        try {
+            Student updatedStudent = studentServiceImpl.addStudentToCourse(studentId, courseId);
+            return ResponseEntity.ok(updatedStudent);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{studentId}/courses/{courseId}")
+    public ResponseEntity<?> removeStudentFromCourse(@PathVariable Long studentId, @PathVariable Long courseId) {
+        try {
+            Student updatedStudent = studentServiceImpl.removeStudentFromCourse(studentId, courseId);
+            return ResponseEntity.ok(updatedStudent);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Internal server error: " + e.getMessage()));
         }
     }
 }
