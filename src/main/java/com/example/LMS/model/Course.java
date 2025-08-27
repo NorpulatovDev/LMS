@@ -52,7 +52,8 @@ public class Course {
     @JsonIgnoreProperties({"courses", "user"})
     private Set<Teacher> teachers = new HashSet<>();
 
-    @ManyToMany(mappedBy = "courses", fetch = FetchType.LAZY)
+    // FIXED: Added cascade and proper initialization
+    @ManyToMany(mappedBy = "courses", fetch = FetchType.LAZY, cascade = {CascadeType.MERGE, CascadeType.PERSIST})
     @JsonIgnoreProperties({"courses"})
     private Set<Student> students = new HashSet<>();
 
@@ -62,6 +63,29 @@ public class Course {
         this.fee = fee;
         this.teachers = new HashSet<>();
         this.students = new HashSet<>();
+    }
+
+    // FIXED: Helper methods for bidirectional relationship
+    public void addStudent(Student student) {
+        if (student != null) {
+            this.students.add(student);
+            student.getCourses().add(this);
+        }
+    }
+
+    public void removeStudent(Student student) {
+        if (student != null) {
+            this.students.remove(student);
+            student.getCourses().remove(this);
+        }
+    }
+
+    // FIXED: Ensure students set is properly initialized
+    public Set<Student> getStudents() {
+        if (this.students == null) {
+            this.students = new HashSet<>();
+        }
+        return this.students;
     }
 
     @Override

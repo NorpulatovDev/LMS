@@ -37,7 +37,8 @@ public class Student {
     @Column(nullable = false)
     private String enrollmentDate;
 
-    @ManyToMany(fetch = FetchType.EAGER)
+    // FIXED: Added cascade and proper fetch type
+    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.PERSIST})
     @JoinTable(
             name = "student_course",
             joinColumns = @JoinColumn(name = "student_id"),
@@ -54,15 +55,34 @@ public class Student {
         this.courses = new HashSet<>();
     }
 
-    // Helper methods
+    // FIXED: Helper methods to maintain bidirectional relationship
     public void addCourse(Course course) {
-        this.courses.add(course);
-        course.getStudents().add(this);
+        if (course != null) {
+            this.courses.add(course);
+            course.getStudents().add(this);
+        }
     }
 
     public void removeCourse(Course course) {
-        this.courses.remove(course);
-        course.getStudents().remove(this);
+        if (course != null) {
+            this.courses.remove(course);
+            course.getStudents().remove(this);
+        }
+    }
+
+    // FIXED: Method to set courses properly maintaining bidirectional relationship
+    public void setCourses(Set<Course> newCourses) {
+        // Clear existing relationships
+        if (this.courses != null) {
+            this.courses.forEach(course -> course.getStudents().remove(this));
+        }
+
+        this.courses = new HashSet<>();
+
+        // Add new relationships
+        if (newCourses != null) {
+            newCourses.forEach(this::addCourse);
+        }
     }
 
     @Override

@@ -57,27 +57,32 @@ public class StudentServiceImpl implements StudentService {
             student.setEnrollmentDate(request.getEnrollmentDate());
         }
 
-        // Handle courses
-        Set<Course> courses = new HashSet<>();
+        // FIXED: Handle courses properly with bidirectional relationship
         if (request.getCourseIds() != null && !request.getCourseIds().isEmpty()) {
             System.out.println("Processing course IDs: " + request.getCourseIds());
 
+            // First save the student without courses to get the ID
+            Student savedStudent = studentRepository.save(student);
+
+            // Then add courses one by one
             for (Long courseId : request.getCourseIds()) {
                 Course course = courseRepository.findById(courseId)
                         .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
-                courses.add(course);
+
+                // Use the helper method to maintain bidirectional relationship
+                savedStudent.addCourse(course);
                 System.out.println("Added course: " + course.getName());
             }
+
+            // Save the student again with courses
+            savedStudent = studentRepository.save(savedStudent);
+            System.out.println("Final save - Student courses count: " + savedStudent.getCourses().size());
+
+            return savedStudent;
+        } else {
+            // No courses, just save the student
+            return studentRepository.save(student);
         }
-
-        student.setCourses(courses);
-
-        // Save student with courses
-        Student savedStudent = studentRepository.save(student);
-        System.out.println("Saved student: " + savedStudent);
-        System.out.println("Student courses count: " + savedStudent.getCourses().size());
-
-        return savedStudent;
     }
 
     @Override
@@ -90,8 +95,17 @@ public class StudentServiceImpl implements StudentService {
         existingStudent.setPhone(studentDetails.getPhone());
         existingStudent.setEnrollmentDate(studentDetails.getEnrollmentDate());
 
+        // FIXED: Handle course updates properly
         if (studentDetails.getCourses() != null) {
-            existingStudent.setCourses(new HashSet<>(studentDetails.getCourses()));
+            // Clear existing relationships first
+            existingStudent.getCourses().forEach(course ->
+                    course.getStudents().remove(existingStudent));
+            existingStudent.getCourses().clear();
+
+            // Add new relationships
+            for (Course course : studentDetails.getCourses()) {
+                existingStudent.addCourse(course);
+            }
         }
 
         return studentRepository.save(existingStudent);
@@ -101,6 +115,11 @@ public class StudentServiceImpl implements StudentService {
     @Transactional
     public void deleteStudent(Long id) {
         Student student = getStudentById(id);
+
+        // FIXED: Clean up relationships before deletion
+        student.getCourses().forEach(course -> course.getStudents().remove(student));
+        student.getCourses().clear();
+
         studentRepository.delete(student);
     }
 
@@ -111,8 +130,8 @@ public class StudentServiceImpl implements StudentService {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
 
-        student.getCourses().add(course);
-        course.getStudents().add(student);
+        // Use helper method to maintain bidirectional relationship
+        student.addCourse(course);
 
         return studentRepository.save(student);
     }
@@ -124,8 +143,8 @@ public class StudentServiceImpl implements StudentService {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
 
-        student.getCourses().remove(course);
-        course.getStudents().remove(student);
+        // Use helper method to maintain bidirectional relationship
+        student.removeCourse(course);
 
         return studentRepository.save(student);
     }

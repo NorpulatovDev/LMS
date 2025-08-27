@@ -6,14 +6,14 @@ import com.example.LMS.model.Student;
 import com.example.LMS.model.Teacher;
 import com.example.LMS.repository.PaymentRepository;
 import com.example.LMS.repository.TeacherRepository;
-import com.example.LMS.service.TeacherService; // TeacherService ni o'zgartirishlar uchun
+import com.example.LMS.service.TeacherService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication; // Autentifikatsiya ma'lumotlarini olish uchun
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails; // Foydalanuvchi ma'lumotlari uchun
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@CrossOrigin
 @RequestMapping("/api/teachers")
 public class TeacherController {
 
@@ -35,10 +34,37 @@ public class TeacherController {
     @Autowired
     private PaymentRepository paymentRepository;
 
+    // Teacher Profile Management
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @GetMapping
+    public ResponseEntity<List<Teacher>> getAllTeachers() {
+        List<Teacher> teachers = teacherService.getAllTeachers();
+        return ResponseEntity.ok(teachers);
+    }
 
-    /**
-     * Get payments for teacher's courses
-     */
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @GetMapping("/{id}")
+    public ResponseEntity<Teacher> getTeacherById(@PathVariable Long id) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserDetails)) {
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+        }
+
+        UserDetails currentUser = (UserDetails) authentication.getPrincipal();
+        boolean isAdmin = currentUser.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        Teacher teacher = teacherService.getTeacherById(id);
+
+        // Teachers can only view their own profile unless they are admin
+        if (!isAdmin && !teacher.getUser().getUsername().equals(currentUser.getUsername())) {
+            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+        }
+
+        return ResponseEntity.ok(teacher);
+    }
+
+    // Payment Tracking for Teachers
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     @GetMapping("/my-payments")
     public ResponseEntity<List<Payment>> getMyPayments(Authentication auth) {
@@ -50,9 +76,6 @@ public class TeacherController {
         return ResponseEntity.ok(payments);
     }
 
-    /**
-     * Get students who haven't paid for teacher's specific course
-     */
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     @GetMapping("/my-payments/by-month")
     public ResponseEntity<List<Payment>> getMyPaymentsByMonth(
@@ -99,37 +122,4 @@ public class TeacherController {
         List<Student> unpaidStudents = paymentRepository.findStudentsWithoutPayment(courseId, month);
         return ResponseEntity.ok(unpaidStudents);
     }
-
-
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    @GetMapping
-    public ResponseEntity<List<Teacher>> getAllTeachers() {
-        List<Teacher> teachers = teacherService.getAllTeachers();
-        return ResponseEntity.ok(teachers);
-    }
-
-
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    @GetMapping("/{id}")
-    public ResponseEntity<Teacher> getTeacherById(@PathVariable Long id) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof UserDetails)) {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
-        }
-
-        UserDetails currentUser = (UserDetails) authentication.getPrincipal();
-        boolean isAdmin = currentUser.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-
-        Teacher teacher = teacherService.getTeacherById(id);
-
-
-        if (!isAdmin && !teacher.getUser().getUsername().equals(currentUser.getUsername())) {
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-        }
-
-        return ResponseEntity.ok(teacher);
-    }
-
-
 }

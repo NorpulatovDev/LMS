@@ -6,34 +6,33 @@ import com.example.LMS.model.Course;
 import com.example.LMS.model.Student;
 import com.example.LMS.repository.CourseRepository;
 import com.example.LMS.service.StudentService;
-import com.example.LMS.serviceImpl.StudentServiceImpl;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Set;
 
 @RestController
-@CrossOrigin
 @RequestMapping("/students")
 public class StudentController {
     private final StudentService studentService;
-    private final StudentServiceImpl studentServiceImpl;
 
     @Autowired
     private CourseRepository courseRepository;
 
-    public StudentController(StudentService studentService, StudentServiceImpl studentServiceImpl){
+    public StudentController(StudentService studentService){
         this.studentService = studentService;
-        this.studentServiceImpl = studentServiceImpl;
     }
 
+    // Essential CRUD Operations
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     @GetMapping
     public ResponseEntity<List<Student>> getAllStudents(){
         try {
@@ -45,6 +44,7 @@ public class StudentController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     @GetMapping("/{id}")
     public ResponseEntity<Student> getStudentById(@PathVariable Long id){
         try {
@@ -58,8 +58,10 @@ public class StudentController {
         }
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public ResponseEntity<?> addStudent(@Valid @RequestBody StudentRequest studentRequest){
+    @Transactional
+    public ResponseEntity<?> createStudent(@Valid @RequestBody StudentRequest studentRequest){
         try {
             System.out.println("Received student request: " + studentRequest);
 
@@ -77,6 +79,10 @@ public class StudentController {
             // Validate course IDs if provided
             if (studentRequest.getCourseIds() != null && !studentRequest.getCourseIds().isEmpty()) {
                 for (Long courseId : studentRequest.getCourseIds()) {
+                    if (courseId == null) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(Map.of("error", "Course ID cannot be null"));
+                    }
                     if (!courseRepository.existsById(courseId)) {
                         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                                 .body(Map.of("error", "Course with ID " + courseId + " not found"));
@@ -85,10 +91,9 @@ public class StudentController {
             }
 
             Student createdStudent = studentService.createStudent(studentRequest);
-            System.out.println("Created student: " + createdStudent);
-            System.out.println("Student courses: " + createdStudent.getCourses().size());
+            Student reloadedStudent = studentService.getStudentById(createdStudent.getId());
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(createdStudent);
+            return ResponseEntity.status(HttpStatus.CREATED).body(reloadedStudent);
 
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -101,12 +106,11 @@ public class StudentController {
         }
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> updateStudent(@PathVariable Long id, @Valid @RequestBody StudentRequest studentRequest){
         try {
-            System.out.println("Updating student with ID: " + id);
-            System.out.println("Update request: " + studentRequest);
-
             // Convert StudentRequest to Student
             Student studentDetails = new Student();
             studentDetails.setName(studentRequest.getName());
@@ -126,9 +130,9 @@ public class StudentController {
             studentDetails.setCourses(courses);
 
             Student updatedStudent = studentService.updateStudent(id, studentDetails);
-            System.out.println("Updated student with courses: " + updatedStudent.getCourses().size());
+            Student reloadedStudent = studentService.getStudentById(updatedStudent.getId());
 
-            return ResponseEntity.ok(updatedStudent);
+            return ResponseEntity.ok(reloadedStudent);
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", e.getMessage()));
@@ -140,7 +144,9 @@ public class StudentController {
         }
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> deleteStudent(@PathVariable Long id){
         try {
             studentService.deleteStudent(id);
@@ -150,35 +156,6 @@ public class StudentController {
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             System.err.println("Error deleting student: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Internal server error: " + e.getMessage()));
-        }
-    }
-
-    // Additional endpoints for course management
-    @PostMapping("/{studentId}/courses/{courseId}")
-    public ResponseEntity<?> addStudentToCourse(@PathVariable Long studentId, @PathVariable Long courseId) {
-        try {
-            Student updatedStudent = studentServiceImpl.addStudentToCourse(studentId, courseId);
-            return ResponseEntity.ok(updatedStudent);
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Internal server error: " + e.getMessage()));
-        }
-    }
-
-    @DeleteMapping("/{studentId}/courses/{courseId}")
-    public ResponseEntity<?> removeStudentFromCourse(@PathVariable Long studentId, @PathVariable Long courseId) {
-        try {
-            Student updatedStudent = studentServiceImpl.removeStudentFromCourse(studentId, courseId);
-            return ResponseEntity.ok(updatedStudent);
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", e.getMessage()));
-        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Internal server error: " + e.getMessage()));
         }
