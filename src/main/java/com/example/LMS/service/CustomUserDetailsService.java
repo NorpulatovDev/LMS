@@ -1,6 +1,5 @@
 package com.example.LMS.service;
 
-
 import com.example.LMS.model.User;
 import com.example.LMS.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +8,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.stream.Collectors;
 
@@ -16,12 +16,16 @@ import java.util.stream.Collectors;
 public class CustomUserDetailsService implements UserDetailsService {
 
     @Autowired
-    private com.example.LMS.repository.UserRepository userRepository;
+    private UserRepository userRepository;
 
     @Override
+    @Transactional(readOnly = true) // CRITICAL: Add this annotation
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        com.example.LMS.model.User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+
+        // CRITICAL: Access roles within transaction to force loading
+        user.getRoles().size(); // This triggers lazy loading within transaction
 
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
