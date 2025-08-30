@@ -111,6 +111,17 @@ public class StudentController {
     @Transactional
     public ResponseEntity<?> updateStudent(@PathVariable Long id, @Valid @RequestBody StudentRequest studentRequest){
         try {
+            // Validate the request
+            if (studentRequest.getName() == null || studentRequest.getName().trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Student name is required"));
+            }
+
+            if (studentRequest.getPhone() == null || studentRequest.getPhone().trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Student phone is required"));
+            }
+
             // Convert StudentRequest to Student
             Student studentDetails = new Student();
             studentDetails.setName(studentRequest.getName());
@@ -118,21 +129,32 @@ public class StudentController {
             studentDetails.setPhone(studentRequest.getPhone());
             studentDetails.setEnrollmentDate(studentRequest.getEnrollmentDate());
 
-            // Handle courses
-            Set<Course> courses = new HashSet<>();
+            // Handle courses if provided
             if (studentRequest.getCourseIds() != null && !studentRequest.getCourseIds().isEmpty()) {
+                Set<Course> courses = new HashSet<>();
                 for (Long courseId : studentRequest.getCourseIds()) {
+                    if (courseId == null) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(Map.of("error", "Course ID cannot be null"));
+                    }
+
                     Course course = courseRepository.findById(courseId)
                             .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
                     courses.add(course);
                 }
+                studentDetails.setCourses(courses);
+            } else {
+                // If no course IDs provided, set empty set
+                studentDetails.setCourses(new HashSet<>());
             }
-            studentDetails.setCourses(courses);
 
             Student updatedStudent = studentService.updateStudent(id, studentDetails);
+
+            // Reload the student to ensure all data is fresh
             Student reloadedStudent = studentService.getStudentById(updatedStudent.getId());
 
             return ResponseEntity.ok(reloadedStudent);
+
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", e.getMessage()));
@@ -143,6 +165,7 @@ public class StudentController {
                     .body(Map.of("error", "Internal server error: " + e.getMessage()));
         }
     }
+
 
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")

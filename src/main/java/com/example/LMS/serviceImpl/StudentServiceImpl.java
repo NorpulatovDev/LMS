@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Set;
 
 @Service
-@Transactional
 public class StudentServiceImpl implements StudentService {
     private final StudentRepository studentRepository;
     private final CourseRepository courseRepository;
@@ -35,9 +34,9 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional(readOnly = true)
     public Student getStudentById(Long id) {
-        return studentRepository.findById(id).orElseThrow(
-                () -> new ResourceNotFoundException("Student not found with id: " + id)
-        );
+        // Use the method that loads courses to avoid lazy loading issues
+        return studentRepository.findByIdWithCourses(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + id));
     }
 
     @Override
@@ -45,107 +44,147 @@ public class StudentServiceImpl implements StudentService {
     public Student createStudent(StudentRequest request) {
         System.out.println("Creating student with request: " + request);
 
-        // Create student entity
-        Student student = new Student();
-        student.setName(request.getName());
-        student.setEmail(request.getEmail());
-        student.setPhone(request.getPhone());
+        try {
+            // Create student entity
+            Student student = new Student();
+            student.setName(request.getName());
+            student.setEmail(request.getEmail());
+            student.setPhone(request.getPhone());
 
-        if (request.getEnrollmentDate() == null || request.getEnrollmentDate().trim().isEmpty()) {
-            student.setEnrollmentDate(LocalDate.now().toString());
-        } else {
-            student.setEnrollmentDate(request.getEnrollmentDate());
-        }
-
-        // FIXED: Handle courses properly with bidirectional relationship
-        if (request.getCourseIds() != null && !request.getCourseIds().isEmpty()) {
-            System.out.println("Processing course IDs: " + request.getCourseIds());
-
-            // First save the student without courses to get the ID
-            Student savedStudent = studentRepository.save(student);
-
-            // Then add courses one by one
-            for (Long courseId : request.getCourseIds()) {
-                Course course = courseRepository.findById(courseId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
-
-                // Use the helper method to maintain bidirectional relationship
-                savedStudent.addCourse(course);
-                System.out.println("Added course: " + course.getName());
+            if (request.getEnrollmentDate() == null || request.getEnrollmentDate().trim().isEmpty()) {
+                student.setEnrollmentDate(LocalDate.now().toString());
+            } else {
+                student.setEnrollmentDate(request.getEnrollmentDate());
             }
 
-            // Save the student again with courses
-            savedStudent = studentRepository.save(savedStudent);
-            System.out.println("Final save - Student courses count: " + savedStudent.getCourses().size());
+            // Initialize courses set
+            student.setCourses(new HashSet<>());
+
+            // Handle courses if provided
+            if (request.getCourseIds() != null && !request.getCourseIds().isEmpty()) {
+                System.out.println("Processing course IDs: " + request.getCourseIds());
+
+                Set<Course> courses = new HashSet<>();
+                for (Long courseId : request.getCourseIds()) {
+                    Course course = courseRepository.findById(courseId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
+                    courses.add(course);
+                    System.out.println("Added course: " + course.getName());
+                }
+                student.setCourses(courses);
+            }
+
+            Student savedStudent = studentRepository.save(student);
+            System.out.println("Student saved successfully with courses count: " + savedStudent.getCourses().size());
 
             return savedStudent;
-        } else {
-            // No courses, just save the student
-            return studentRepository.save(student);
+
+        } catch (Exception e) {
+            System.err.println("Error in createStudent: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // Re-throw to trigger rollback
         }
     }
 
     @Override
     @Transactional
     public Student updateStudent(Long id, Student studentDetails) {
-        Student existingStudent = getStudentById(id);
+        try {
+            // Fetch the existing student with courses loaded
+            Student existingStudent = studentRepository.findByIdWithCourses(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + id));
 
-        existingStudent.setName(studentDetails.getName());
-        existingStudent.setEmail(studentDetails.getEmail());
-        existingStudent.setPhone(studentDetails.getPhone());
-        existingStudent.setEnrollmentDate(studentDetails.getEnrollmentDate());
+            // Update basic fields
+            existingStudent.setName(studentDetails.getName());
+            existingStudent.setEmail(studentDetails.getEmail());
+            existingStudent.setPhone(studentDetails.getPhone());
+            existingStudent.setEnrollmentDate(studentDetails.getEnrollmentDate());
 
-        // FIXED: Handle course updates properly
-        if (studentDetails.getCourses() != null) {
-            // Clear existing relationships first
-            existingStudent.getCourses().forEach(course ->
-                    course.getStudents().remove(existingStudent));
-            existingStudent.getCourses().clear();
+            // Handle course updates more carefully
+            if (studentDetails.getCourses() != null) {
+                // Clear existing courses
+                existingStudent.getCourses().clear();
 
-            // Add new relationships
-            for (Course course : studentDetails.getCourses()) {
-                existingStudent.addCourse(course);
+                // Add new courses
+                Set<Course> newCourses = new HashSet<>();
+                for (Course courseDetails : studentDetails.getCourses()) {
+                    // Fetch the managed course entity
+                    Course managedCourse = courseRepository.findById(courseDetails.getId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseDetails.getId()));
+                    newCourses.add(managedCourse);
+                }
+                existingStudent.setCourses(newCourses);
             }
-        }
 
-        return studentRepository.save(existingStudent);
+            // Save and return
+            Student updatedStudent = studentRepository.save(existingStudent);
+            System.out.println("Student updated successfully");
+
+            return updatedStudent;
+
+        } catch (Exception e) {
+            System.err.println("Error in updateStudent: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // Re-throw to trigger rollback
+        }
     }
 
     @Override
     @Transactional
     public void deleteStudent(Long id) {
-        Student student = getStudentById(id);
+        try {
+            // Fetch the student with courses loaded
+            Student student = studentRepository.findByIdWithCourses(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + id));
 
-        // FIXED: Clean up relationships before deletion
-        student.getCourses().forEach(course -> course.getStudents().remove(student));
-        student.getCourses().clear();
+            // Clear all course relationships
+            student.getCourses().clear();
 
-        studentRepository.delete(student);
+            // Save to update relationships, then delete
+            studentRepository.save(student);
+            studentRepository.delete(student);
+
+            System.out.println("Student deleted successfully");
+
+        } catch (Exception e) {
+            System.err.println("Error in deleteStudent: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // Re-throw to trigger rollback
+        }
     }
 
-    // Additional method to add student to course
+    // Additional helper methods
     @Transactional
     public Student addStudentToCourse(Long studentId, Long courseId) {
-        Student student = getStudentById(studentId);
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
+        try {
+            Student student = getStudentById(studentId);
+            Course course = courseRepository.findById(courseId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
 
-        // Use helper method to maintain bidirectional relationship
-        student.addCourse(course);
+            student.getCourses().add(course);
+            return studentRepository.save(student);
 
-        return studentRepository.save(student);
+        } catch (Exception e) {
+            System.err.println("Error in addStudentToCourse: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
-    // Additional method to remove student from course
     @Transactional
     public Student removeStudentFromCourse(Long studentId, Long courseId) {
-        Student student = getStudentById(studentId);
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
+        try {
+            Student student = getStudentById(studentId);
+            Course course = courseRepository.findById(courseId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
 
-        // Use helper method to maintain bidirectional relationship
-        student.removeCourse(course);
+            student.getCourses().remove(course);
+            return studentRepository.save(student);
 
-        return studentRepository.save(student);
+        } catch (Exception e) {
+            System.err.println("Error in removeStudentFromCourse: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 }

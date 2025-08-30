@@ -37,8 +37,8 @@ public class Student {
     @Column(nullable = false)
     private String enrollmentDate;
 
-    // FIXED: Added cascade and proper fetch type
-    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.PERSIST})
+    // FIXED: Simplified relationship management
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "student_course",
             joinColumns = @JoinColumn(name = "student_id"),
@@ -55,33 +55,37 @@ public class Student {
         this.courses = new HashSet<>();
     }
 
-    // FIXED: Helper methods to maintain bidirectional relationship
+    // FIXED: Simplified setter that ensures courses is never null
+    public void setCourses(Set<Course> courses) {
+        if (this.courses == null) {
+            this.courses = new HashSet<>();
+        } else {
+            this.courses.clear();
+        }
+
+        if (courses != null) {
+            this.courses.addAll(courses);
+        }
+    }
+
+    // FIXED: Ensure courses is never null
+    public Set<Course> getCourses() {
+        if (this.courses == null) {
+            this.courses = new HashSet<>();
+        }
+        return this.courses;
+    }
+
+    // Helper methods for easier course management
     public void addCourse(Course course) {
         if (course != null) {
-            this.courses.add(course);
-            course.getStudents().add(this);
+            getCourses().add(course);
         }
     }
 
     public void removeCourse(Course course) {
         if (course != null) {
-            this.courses.remove(course);
-            course.getStudents().remove(this);
-        }
-    }
-
-    // FIXED: Method to set courses properly maintaining bidirectional relationship
-    public void setCourses(Set<Course> newCourses) {
-        // Clear existing relationships
-        if (this.courses != null) {
-            this.courses.forEach(course -> course.getStudents().remove(this));
-        }
-
-        this.courses = new HashSet<>();
-
-        // Add new relationships
-        if (newCourses != null) {
-            newCourses.forEach(this::addCourse);
+            getCourses().remove(course);
         }
     }
 
