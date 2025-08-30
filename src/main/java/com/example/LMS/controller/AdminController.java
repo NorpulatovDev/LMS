@@ -142,51 +142,184 @@ public class AdminController {
             ))
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/financial-summary")
+    // FIXED: Enhanced financial summary with debugging and data migration
     public ResponseEntity<Map<String, Object>> getFinancialSummary(
             @Parameter(description = "Month in format YYYY-MM", example = "2025-08")
             @RequestParam(required = false) String month) {
-        if (month == null || month.isEmpty()) {
-            month = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
+
+        try {
+            if (month == null || month.isEmpty()) {
+                month = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
+            }
+
+            // Validate month format
+            if (!month.matches("\\d{4}-\\d{2}")) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Month must be in format YYYY-MM (e.g., 2025-08)"));
+            }
+
+            System.out.println("=== FINANCIAL SUMMARY DEBUG ===");
+            System.out.println("Calculating for month: " + month);
+
+            // STEP 1: Fix existing payments with missing paymentMonth
+            fixPaymentsWithMissingMonth();
+
+            Map<String, Object> summary = new HashMap<>();
+
+            // STEP 2: Get payments for the month with debugging
+            List<Payment> payments = paymentRepository.findPaymentsByMonth(month);
+            System.out.println("Found " + payments.size() + " payments for month " + month);
+
+            // Debug: Show payment details
+            if (payments.isEmpty()) {
+                System.out.println("No payments found. Checking all payments...");
+                Long totalPayments = paymentRepository.countAllPayments();
+                System.out.println("Total payments in database: " + totalPayments);
+
+                List<Object[]> allPaymentInfo = paymentRepository.findAllPaymentInfo();
+                System.out.println("All payment info:");
+                for (Object[] info : allPaymentInfo) {
+                    System.out.println("ID: " + info[0] + ", Date: " + info[1] + ", Month: " + info[2] + ", Amount: " + info[3]);
+                }
+            }
+
+            // Calculate revenue
+            double revenue = payments.stream()
+                    .mapToDouble(p -> p.getAmount() != null ? p.getAmount() : 0.0)
+                    .sum();
+            System.out.println("Calculated revenue: " + revenue);
+
+            // STEP 3: Calculate expenses
+            List<Teacher> teachers = teacherRepository.findAll();
+            double teacherSalaries = teachers.stream()
+                    .mapToDouble(t -> t.getSalary() != null ? t.getSalary() : 0.0)
+                    .sum();
+            System.out.println("Teacher salaries total: " + teacherSalaries + " (from " + teachers.size() + " teachers)");
+
+            double utilityExpenses = expenseService.getTotalExpensesByMonth(month);
+//            if (utilityExpenses == null) utilityExpenses = 0.0;
+            System.out.println("Utility expenses: " + utilityExpenses);
+
+            // STEP 4: Calculate totals
+            double totalExpenses = teacherSalaries + utilityExpenses;
+            double netProfit = revenue - totalExpenses;
+
+            // STEP 5: Build response with rounded values
+            summary.put("month", month);
+            summary.put("revenue", Math.round(revenue * 100.0) / 100.0);
+            summary.put("teacherSalaries", Math.round(teacherSalaries * 100.0) / 100.0);
+            summary.put("utilityExpenses", Math.round(utilityExpenses * 100.0) / 100.0);
+            summary.put("totalExpenses", Math.round(totalExpenses * 100.0) / 100.0);
+            summary.put("netProfit", Math.round(netProfit * 100.0) / 100.0);
+            summary.put("paymentsCount", payments.size());
+            summary.put("teachersCount", teachers.size());
+
+            // Additional metrics
+            summary.put("averagePaymentAmount", payments.isEmpty() ? 0.0 :
+                    Math.round((revenue / payments.size()) * 100.0) / 100.0);
+            summary.put("profitMargin", revenue == 0 ? 0.0 :
+                    Math.round((netProfit / revenue * 100) * 100.0) / 100.0);
+
+            // Debug info (remove in production)
+            summary.put("debug", Map.of(
+                    "totalPaymentsInDB", paymentRepository.countAllPayments(),
+                    "paymentsFoundForMonth", payments.size(),
+                    "queryMonth", month
+            ));
+
+            System.out.println("Final summary: " + summary);
+            System.out.println("=== END DEBUG ===");
+
+            return ResponseEntity.ok(summary);
+
+        } catch (Exception e) {
+            System.err.println("Error in financial summary: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error calculating financial summary: " + e.getMessage()));
         }
-
-        Map<String, Object> summary = new HashMap<>();
-
-        List<Payment> payments = paymentRepository.findPaymentsByMonth(month);
-        double revenue = payments.stream().mapToDouble(Payment::getAmount).sum();
-
-        List<Teacher> teachers = teacherRepository.findAll();
-        double salaries = teachers.stream().mapToDouble(Teacher::getSalary).sum();
-
-        double utilities = expenseService.getTotalExpensesByMonth(month);
-
-        double totalExpenses = salaries + utilities;
-        double netProfit = revenue - totalExpenses;
-
-        summary.put("month", month);
-        summary.put("revenue", revenue);
-        summary.put("teacherSalaries", salaries);
-        summary.put("utilityExpenses", utilities);
-        summary.put("totalExpenses", totalExpenses);
-        summary.put("netProfit", netProfit);
-        summary.put("paymentsCount", payments.size());
-        summary.put("teachersCount", teachers.size());
-
-        return ResponseEntity.ok(summary);
     }
 
-    // Payment Management
-    @Operation(summary = "Get payments by month", description = "Retrieve all payment records for a specific month")
-    @ApiResponse(responseCode = "200", description = "Monthly payments retrieved successfully")
+    // NEW: Helper method to fix existing payments with missing paymentMonth
+    private void fixPaymentsWithMissingMonth() {
+        try {
+            List<Payment> paymentsWithMissingMonth = paymentRepository.findPaymentsWithMissingMonth();
+
+            if (!paymentsWithMissingMonth.isEmpty()) {
+                System.out.println("Found " + paymentsWithMissingMonth.size() + " payments with missing paymentMonth. Fixing...");
+
+                for (Payment payment : paymentsWithMissingMonth) {
+                    if (payment.getPaymentDate() != null && !payment.getPaymentDate().isEmpty()) {
+                        try {
+                            LocalDate date = LocalDate.parse(payment.getPaymentDate());
+                            String month = date.format(DateTimeFormatter.ofPattern("yyyy-MM"));
+                            payment.setPaymentMonth(month);
+                            paymentRepository.save(payment);
+                            System.out.println("Fixed payment ID " + payment.getId() + " with month " + month);
+                        } catch (Exception e) {
+                            System.err.println("Could not parse date for payment " + payment.getId() + ": " + payment.getPaymentDate());
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error fixing payments with missing month: " + e.getMessage());
+        }
+    }
+
+    // NEW: Debug endpoint to check all payments
+    @Operation(summary = "Debug all payments", description = "Get all payment information for debugging")
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/debug/payments")
+    public ResponseEntity<Map<String, Object>> debugAllPayments() {
+        Map<String, Object> debug = new HashMap<>();
+
+        try {
+            List<Payment> allPayments = paymentRepository.findAll();
+            List<Payment> paymentsWithMissingMonth = paymentRepository.findPaymentsWithMissingMonth();
+
+            debug.put("totalPayments", allPayments.size());
+            debug.put("paymentsWithMissingMonth", paymentsWithMissingMonth.size());
+            debug.put("allPayments", allPayments);
+
+            // Group by month for analysis
+            Map<String, Long> paymentsByMonth = allPayments.stream()
+                    .filter(p -> p.getPaymentMonth() != null && !p.getPaymentMonth().isEmpty())
+                    .collect(Collectors.groupingBy(Payment::getPaymentMonth, Collectors.counting()));
+
+            debug.put("paymentsByMonth", paymentsByMonth);
+
+            return ResponseEntity.ok(debug);
+
+        } catch (Exception e) {
+            debug.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(debug);
+        }
+    }
+
+    // ENHANCED: Payment by month with debugging
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/payments/by-month")
-    public ResponseEntity<List<Payment>> getPaymentsByMonth(
+    public ResponseEntity<Map<String, Object>> getPaymentsByMonth(
             @Parameter(description = "Month in format YYYY-MM", example = "2025-08")
             @RequestParam(required = false) String month) {
+
         if (month == null || month.isEmpty()) {
             month = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
         }
+
+        // Fix missing paymentMonth before querying
+        fixPaymentsWithMissingMonth();
+
         List<Payment> payments = paymentRepository.findPaymentsByMonth(month);
-        return ResponseEntity.ok(payments);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("month", month);
+        result.put("payments", payments);
+        result.put("count", payments.size());
+        result.put("totalAmount", payments.stream().mapToDouble(p -> p.getAmount() != null ? p.getAmount() : 0.0).sum());
+
+        return ResponseEntity.ok(result);
     }
 
     @Operation(summary = "Get unpaid students for course", description = "Get list of students who haven't paid for a specific course in given month")
