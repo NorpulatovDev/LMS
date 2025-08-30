@@ -1,5 +1,6 @@
 package com.example.LMS.controller;
 
+import com.example.LMS.dto.SalaryPaymentRequest;
 import com.example.LMS.dto.TeacherCreationDto;
 import com.example.LMS.exception.ResourceNotFoundException;
 import com.example.LMS.model.*;
@@ -247,69 +248,236 @@ public class AdminController {
         }
     }
 
-    // NEW: Helper endpoint to pay teacher salaries
+    // Updated payTeacherSalary method in AdminController
     @Operation(summary = "Pay teacher salary", description = "Record a salary payment as an expense")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Salary paid successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid request data or teacher already paid"),
+            @ApiResponse(responseCode = "404", description = "Teacher not found"),
+            @ApiResponse(responseCode = "403", description = "Access denied - Admin role required")
+    })
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/pay-teacher-salary")
     public ResponseEntity<Map<String, Object>> payTeacherSalary(
-            @RequestBody Map<String, Object> paymentRequest) {
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Salary payment details",
+                    required = true,
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = SalaryPaymentRequest.class),
+                            examples = {
+                                    @ExampleObject(
+                                            name = "full_salary",
+                                            summary = "Pay full monthly salary",
+                                            value = """
+                                {
+                                    "teacherId": 1,
+                                    "month": "2025-08"
+                                }
+                                """
+                                    ),
+                                    @ExampleObject(
+                                            name = "custom_amount",
+                                            summary = "Pay custom amount",
+                                            value = """
+                                {
+                                    "teacherId": 1,
+                                    "month": "2025-08",
+                                    "amount": 2500.00,
+                                    "description": "Partial salary payment",
+                                    "paymentType": "PARTIAL_SALARY"
+                                }
+                                """
+                                    ),
+                                    @ExampleObject(
+                                            name = "bonus_payment",
+                                            summary = "Pay bonus",
+                                            value = """
+                                {
+                                    "teacherId": 1,
+                                    "month": "2025-08", 
+                                    "amount": 500.00,
+                                    "description": "Performance bonus",
+                                    "paymentType": "BONUS"
+                                }
+                                """
+                                    )
+                            }
+                    )
+            )
+            @Valid @RequestBody SalaryPaymentRequest request) {
 
         try {
-            Long teacherId = Long.valueOf(paymentRequest.get("teacherId").toString());
-            String month = (String) paymentRequest.get("month");
-            Double customAmount = paymentRequest.containsKey("amount") ?
-                    Double.valueOf(paymentRequest.get("amount").toString()) : null;
+            System.out.println("=== PROCESSING TEACHER SALARY PAYMENT ===");
+            System.out.println("Request: " + request);
 
-            // Get teacher details
-            Teacher teacher = teacherRepository.findById(teacherId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Teacher not found"));
+            // STEP 1: Validate and get teacher
+            Teacher teacher = teacherRepository.findById(request.getTeacherId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Teacher not found with id: " + request.getTeacherId()));
 
-            // Check if already paid this month
-            if (expenseRepository.isTeacherPaidInMonth(teacherId, month)) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("error", "Teacher " + teacher.getName() + " already paid for " + month));
-            }
-
-            // Create salary expense
-            Expense salaryExpense = new Expense();
-            salaryExpense.setName("Salary payment - " + teacher.getName());
-            salaryExpense.setAmount(customAmount != null ? customAmount : teacher.getSalary());
-            salaryExpense.setCategory(Expense.ExpenseCategory.SALARY);
-            salaryExpense.setTeacherId(teacherId);
-            salaryExpense.setTeacherName(teacher.getName());
-            salaryExpense.setDescription("Monthly salary payment");
-
-            // Set dates
+            // STEP 2: Set default month if not provided
+            String month = request.getMonth();
             if (month == null || month.isEmpty()) {
                 month = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
             }
-            salaryExpense.setExpenseMonth(month);
-            salaryExpense.setExpenseDate(LocalDate.now().toString());
 
+            // Validate month format
+            if (!month.matches("\\d{4}-\\d{2}")) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Month must be in format YYYY-MM (e.g., 2025-08)"));
+            }
+
+            // STEP 3: Check if already paid this month (only for FULL_SALARY payments)
+            String paymentType = request.getPaymentType();
+            if (paymentType == null || paymentType.isEmpty()) {
+                paymentType = "FULL_SALARY";
+            }
+
+            if ("FULL_SALARY".equals(paymentType)) {
+                // For full salary, check if already paid
+                List<Expense> existingPayments = expenseRepository.findExpensesByMonthAndCategory(month, Expense.ExpenseCategory.SALARY)
+                        .stream()
+                        .filter(e -> request.getTeacherId().equals(e.getTeacherId()))
+                        .collect(Collectors.toList());
+
+                if (!existingPayments.isEmpty()) {
+                    return ResponseEntity.badRequest()
+                            .body(Map.of(
+                                    "error", "Teacher " + teacher.getName() + " already has salary payment(s) for " + month,
+                                    "existingPayments", existingPayments.stream()
+                                            .map(e -> Map.of(
+                                                    "id", e.getId(),
+                                                    "amount", e.getAmount(),
+                                                    "date", e.getExpenseDate(),
+                                                    "description", e.getDescription() != null ? e.getDescription() : ""
+                                            ))
+                                            .collect(Collectors.toList())
+                            ));
+                }
+            }
+
+            // STEP 4: Determine payment amount
+            Double paymentAmount;
+            if (request.getAmount() != null) {
+                paymentAmount = request.getAmount();
+            } else {
+                if (teacher.getSalary() == null) {
+                    return ResponseEntity.badRequest()
+                            .body(Map.of("error", "Teacher salary is not set and no custom amount provided"));
+                }
+                paymentAmount = teacher.getSalary();
+            }
+
+            // STEP 5: Create salary expense
+            Expense salaryExpense = new Expense();
+
+            // Set basic expense details
+            String expenseName = getExpenseName(teacher.getName(), paymentType);
+            salaryExpense.setName(expenseName);
+            salaryExpense.setAmount(paymentAmount);
+            salaryExpense.setCategory(Expense.ExpenseCategory.SALARY);
+
+            // Set teacher reference
+            salaryExpense.setTeacherId(request.getTeacherId());
+            salaryExpense.setTeacherName(teacher.getName());
+
+            // Set description
+            String description = request.getDescription();
+            if (description == null || description.isEmpty()) {
+                description = getDefaultDescription(paymentType, teacher.getName(), paymentAmount);
+            }
+            salaryExpense.setDescription(description);
+
+            // Set dates
+            salaryExpense.setExpenseMonth(month);
+            if (request.getPaymentDate() != null && !request.getPaymentDate().isEmpty()) {
+                salaryExpense.setExpenseDate(request.getPaymentDate());
+            } else {
+                salaryExpense.setExpenseDate(LocalDate.now().toString());
+            }
+
+            // STEP 6: Save the expense
             Expense savedExpense = expenseRepository.save(salaryExpense);
 
+            // STEP 7: Build response
             Map<String, Object> response = new HashMap<>();
-            response.put("message", "Salary paid successfully");
+            response.put("success", true);
+            response.put("message", getSuccessMessage(paymentType, teacher.getName()));
+
             response.put("teacher", Map.of(
                     "id", teacher.getId(),
                     "name", teacher.getName(),
-                    "salaryAmount", teacher.getSalary()
+                    "email", teacher.getEmail() != null ? teacher.getEmail() : "",
+                    "monthlySalary", teacher.getSalary() != null ? teacher.getSalary() : 0.0
             ));
+
             response.put("payment", Map.of(
                     "expenseId", savedExpense.getId(),
                     "amount", savedExpense.getAmount(),
+                    "paymentType", paymentType,
                     "month", month,
-                    "date", savedExpense.getExpenseDate()
+                    "date", savedExpense.getExpenseDate(),
+                    "description", savedExpense.getDescription()
             ));
 
+            System.out.println("Salary payment processed successfully: " + savedExpense.getId());
             return ResponseEntity.ok(response);
 
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
+
         } catch (Exception e) {
+            System.err.println("Error processing salary payment: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to process salary payment: " + e.getMessage()));
         }
     }
 
+    // Helper methods for the salary payment
+    private String getExpenseName(String teacherName, String paymentType) {
+        switch (paymentType) {
+            case "BONUS":
+                return "Bonus payment - " + teacherName;
+            case "ADVANCE":
+                return "Salary advance - " + teacherName;
+            case "PARTIAL_SALARY":
+                return "Partial salary - " + teacherName;
+            default:
+                return "Salary payment - " + teacherName;
+        }
+    }
+
+    private String getDefaultDescription(String paymentType, String teacherName, Double amount) {
+        switch (paymentType) {
+            case "BONUS":
+                return "Performance bonus payment for " + teacherName;
+            case "ADVANCE":
+                return "Salary advance payment for " + teacherName;
+            case "PARTIAL_SALARY":
+                return "Partial monthly salary payment for " + teacherName;
+            default:
+                return "Monthly salary payment for " + teacherName + " - $" + amount;
+        }
+    }
+
+    private String getSuccessMessage(String paymentType, String teacherName) {
+        switch (paymentType) {
+            case "BONUS":
+                return "Bonus payment processed successfully for " + teacherName;
+            case "ADVANCE":
+                return "Salary advance processed successfully for " + teacherName;
+            case "PARTIAL_SALARY":
+                return "Partial salary payment processed successfully for " + teacherName;
+            default:
+                return "Full salary payment processed successfully for " + teacherName;
+        }
+    }
     // NEW: Helper method to fix existing payments with missing paymentMonth
     private void fixPaymentsWithMissingMonth() {
         try {
