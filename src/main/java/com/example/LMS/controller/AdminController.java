@@ -124,26 +124,18 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/all-financial-summary")
+    public ResponseEntity<Map<String, Object>> getAllFinancialSummary() {
+        Map<String, Object> summary = new HashMap<>();
+        double expenses =expenseService.getAllExpenses().stream().mapToDouble(Expense::getAmount).sum();
+        double payments = paymentRepository.findAll().stream().mapToDouble(Payment::getAmount).sum();
+        summary.put("expenses", expenses);
+        summary.put("payments", payments);
+        summary.put("netProfit", payments-expenses);
+        return ResponseEntity.ok(summary);
+    }
+
     @Operation(summary = "Get financial summary", description = "Get comprehensive financial overview including revenue, expenses, and profit")
-    @ApiResponse(responseCode = "200", description = "Financial summary retrieved successfully",
-            content = @Content(mediaType = "application/json",
-                    examples = @ExampleObject(
-                            name = "financial_summary",
-                            summary = "Sample financial summary",
-                            value = """
-                {
-                    "month": "2025-08",
-                    "revenue": 5000.00,
-                    "teacherSalaries": 3000.00,
-                    "utilityExpenses": 500.00,
-                    "totalExpenses": 3500.00,
-                    "netProfit": 1500.00,
-                    "paymentsCount": 20,
-                    "teachersCount": 3
-                }
-                """
-                    )
-            ))
     // SIMPLE FIX: Updated financial summary without new Expense fields
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/financial-summary")
@@ -190,53 +182,45 @@ public class AdminController {
             summary.put("revenue", Math.round(revenue * 100.0) / 100.0);
             summary.put("recordedExpenses", Math.round(recordedExpenses * 100.0) / 100.0);
             summary.put("netProfit", Math.round(netProfit * 100.0) / 100.0);
-
-            // Payment metrics
-            summary.put("payments", Map.of(
-                    "count", payments.size(),
-                    "averageAmount", payments.isEmpty() ? 0.0 : Math.round((revenue / payments.size()) * 100.0) / 100.0
-            ));
+            summary.put("utilityExpenses", expensesList);
+            // payments of students
+            // daromad
+            // umumiyxarajatlar
+            // komunallar
+            // teachers' salary
+            // payments of students
+//            // Payment metrics
+//            summary.put("payments", Map.of(
+//                    "count", payments.size(),
+//                    "averageAmount", payments.isEmpty() ? 0.0 : Math.round((revenue / payments.size()) * 100.0) / 100.0
+//            ));
 
             // Expense breakdown
-            summary.put("expenses", Map.of(
-                    "totalRecorded", recordedExpenses,
-                    "expensesList", expensesList.stream()
-                            .map(e -> Map.of(
-                                    "id", e.getId(),
-                                    "name", e.getName(),
-                                    "amount", e.getAmount(),
-                                    "date", e.getExpenseDate()
-                            ))
-                            .collect(Collectors.toList())
-            ));
+//            summary.put("expenses", Map.of(
+//                    "totalRecorded", recordedExpenses,
+//                    "expensesList", expensesList.stream()
+//                            .map(e -> Map.of(
+//                                    "id", e.getId(),
+//                                    "name", e.getName(),
+//                                    "amount", e.getAmount(),
+//                                    "date", e.getExpenseDate()
+//                            ))
+//                            .collect(Collectors.toList())
+//            ));
 
             // Teacher info (informational only - not included in profit calculation)
-            summary.put("teacherInfo", Map.of(
-                    "totalTeachers", allTeachers.size(),
-                    "potentialMonthlySalaryCost", Math.round(potentialSalaryCost * 100.0) / 100.0,
-                    "note", "Salary costs are only included when admin records them as expenses"
-            ));
-
-            // Business metrics
-            summary.put("metrics", Map.of(
-                    "profitMargin", revenue == 0 ? 0.0 : Math.round((netProfit / revenue * 100) * 100.0) / 100.0,
-                    "expenseRatio", revenue == 0 ? 0.0 : Math.round((recordedExpenses / revenue * 100) * 100.0) / 100.0,
-                    "isProfitable", netProfit > 0
-            ));
-
-            // Simple recommendations
-            List<String> recommendations = new ArrayList<>();
-            if (netProfit < 0) {
-                recommendations.add("Business is operating at a loss based on recorded expenses.");
-            }
-            if (revenue == 0 && recordedExpenses > 0) {
-                recommendations.add("No revenue but expenses recorded. Focus on student enrollment.");
-            }
-            if (recordedExpenses == 0 && allTeachers.size() > 0) {
-                recommendations.add("No expenses recorded yet. Consider recording teacher salaries and utility costs.");
-            }
-
-            summary.put("recommendations", recommendations);
+//            summary.put("teacherInfo", Map.of(
+//                    "totalTeachers", allTeachers.size(),
+//                    "potentialMonthlySalaryCost", Math.round(potentialSalaryCost * 100.0) / 100.0,
+//                    "note", "Salary costs are only included when admin records them as expenses"
+//            ));
+//
+//            // Business metrics
+//            summary.put("metrics", Map.of(
+//                    "profitMargin", revenue == 0 ? 0.0 : Math.round((netProfit / revenue * 100) * 100.0) / 100.0,
+//                    "expenseRatio", revenue == 0 ? 0.0 : Math.round((recordedExpenses / revenue * 100) * 100.0) / 100.0,
+//                    "isProfitable", netProfit > 0
+//            ));
 
             return ResponseEntity.ok(summary);
 

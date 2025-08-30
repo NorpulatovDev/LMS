@@ -77,14 +77,14 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         // STEP 5: CRITICAL - Always set paymentMonth properly
-        String calculatedMonth;
-        try {
-            LocalDate paymentDateParsed = LocalDate.parse(payment.getPaymentDate());
-            calculatedMonth = paymentDateParsed.format(DateTimeFormatter.ofPattern("yyyy-MM"));
-        } catch (DateTimeParseException e) {
-            System.err.println("Invalid payment date format: " + payment.getPaymentDate());
-            throw new IllegalArgumentException("Invalid payment date format. Use YYYY-MM-DD");
-        }
+        String calculatedMonth = payment.getPaymentMonth();
+//        try {
+//            LocalDate paymentDateParsed = LocalDate.parse(payment.getPaymentMonth());
+//            calculatedMonth = paymentDateParsed.format(DateTimeFormatter.ofPattern("yyyy-MM"));
+//        } catch (DateTimeParseException e) {
+//            System.err.println("Invalid payment date format: " + payment.getPaymentDate());
+//            throw new IllegalArgumentException("Invalid payment date format. Use YYYY-MM-DD");
+//        }
 
         // Always use calculated month, even if paymentMonth was provided
         payment.setPaymentMonth(calculatedMonth);
