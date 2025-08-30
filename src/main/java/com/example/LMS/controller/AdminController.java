@@ -1,6 +1,7 @@
 package com.example.LMS.controller;
 
 import com.example.LMS.dto.TeacherCreationDto;
+import com.example.LMS.exception.ResourceNotFoundException;
 import com.example.LMS.model.*;
 import com.example.LMS.repository.*;
 import com.example.LMS.service.ExpenseService;
@@ -46,6 +47,8 @@ public class AdminController {
     private StudentRepository studentRepository;
     @Autowired
     private ExpenseService expenseService;
+    @Autowired
+    private ExpenseRepository expenseRepository;
 
     // EXPENSE MANAGEMENT
     @Operation(summary = "Add new expense", description = "Create a new expense record for the institution")
@@ -140,9 +143,9 @@ public class AdminController {
                 """
                     )
             ))
+    // SIMPLE FIX: Updated financial summary without new Expense fields
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/financial-summary")
-    // FIXED: Enhanced financial summary with debugging and data migration
     public ResponseEntity<Map<String, Object>> getFinancialSummary(
             @Parameter(description = "Month in format YYYY-MM", example = "2025-08")
             @RequestParam(required = false) String month) {
@@ -152,83 +155,87 @@ public class AdminController {
                 month = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
             }
 
-            // Validate month format
             if (!month.matches("\\d{4}-\\d{2}")) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Month must be in format YYYY-MM (e.g., 2025-08)"));
             }
 
-            System.out.println("=== FINANCIAL SUMMARY DEBUG ===");
-            System.out.println("Calculating for month: " + month);
-
-            // STEP 1: Fix existing payments with missing paymentMonth
-            fixPaymentsWithMissingMonth();
-
             Map<String, Object> summary = new HashMap<>();
 
-            // STEP 2: Get payments for the month with debugging
+            // STEP 1: Calculate Revenue
             List<Payment> payments = paymentRepository.findPaymentsByMonth(month);
-            System.out.println("Found " + payments.size() + " payments for month " + month);
-
-            // Debug: Show payment details
-            if (payments.isEmpty()) {
-                System.out.println("No payments found. Checking all payments...");
-                Long totalPayments = paymentRepository.countAllPayments();
-                System.out.println("Total payments in database: " + totalPayments);
-
-                List<Object[]> allPaymentInfo = paymentRepository.findAllPaymentInfo();
-                System.out.println("All payment info:");
-                for (Object[] info : allPaymentInfo) {
-                    System.out.println("ID: " + info[0] + ", Date: " + info[1] + ", Month: " + info[2] + ", Amount: " + info[3]);
-                }
-            }
-
-            // Calculate revenue
             double revenue = payments.stream()
                     .mapToDouble(p -> p.getAmount() != null ? p.getAmount() : 0.0)
                     .sum();
-            System.out.println("Calculated revenue: " + revenue);
 
-            // STEP 3: Calculate expenses
-            List<Teacher> teachers = teacherRepository.findAll();
-            double teacherSalaries = teachers.stream()
+            // STEP 2: Calculate ONLY recorded expenses (correct logic!)
+            double recordedExpenses = expenseService.getTotalExpensesByMonth(month);
+//            if (recordedExpenses == null) recordedExpenses = 0.0;
+
+            // STEP 3: Calculate profit based on actual expenses
+            double netProfit = revenue - recordedExpenses;
+
+            // STEP 4: Get all expenses for breakdown
+            List<Expense> expensesList = expenseService.getExpensesByMonth(month);
+
+            // STEP 5: Teacher information (without requiring new expense fields)
+            List<Teacher> allTeachers = teacherRepository.findAll();
+            double potentialSalaryCost = allTeachers.stream()
                     .mapToDouble(t -> t.getSalary() != null ? t.getSalary() : 0.0)
                     .sum();
-            System.out.println("Teacher salaries total: " + teacherSalaries + " (from " + teachers.size() + " teachers)");
 
-            double utilityExpenses = expenseService.getTotalExpensesByMonth(month);
-//            if (utilityExpenses == null) utilityExpenses = 0.0;
-            System.out.println("Utility expenses: " + utilityExpenses);
-
-            // STEP 4: Calculate totals
-            double totalExpenses = teacherSalaries + utilityExpenses;
-            double netProfit = revenue - totalExpenses;
-
-            // STEP 5: Build response with rounded values
+            // STEP 6: Build response
             summary.put("month", month);
             summary.put("revenue", Math.round(revenue * 100.0) / 100.0);
-            summary.put("teacherSalaries", Math.round(teacherSalaries * 100.0) / 100.0);
-            summary.put("utilityExpenses", Math.round(utilityExpenses * 100.0) / 100.0);
-            summary.put("totalExpenses", Math.round(totalExpenses * 100.0) / 100.0);
+            summary.put("recordedExpenses", Math.round(recordedExpenses * 100.0) / 100.0);
             summary.put("netProfit", Math.round(netProfit * 100.0) / 100.0);
-            summary.put("paymentsCount", payments.size());
-            summary.put("teachersCount", teachers.size());
 
-            // Additional metrics
-            summary.put("averagePaymentAmount", payments.isEmpty() ? 0.0 :
-                    Math.round((revenue / payments.size()) * 100.0) / 100.0);
-            summary.put("profitMargin", revenue == 0 ? 0.0 :
-                    Math.round((netProfit / revenue * 100) * 100.0) / 100.0);
-
-            // Debug info (remove in production)
-            summary.put("debug", Map.of(
-                    "totalPaymentsInDB", paymentRepository.countAllPayments(),
-                    "paymentsFoundForMonth", payments.size(),
-                    "queryMonth", month
+            // Payment metrics
+            summary.put("payments", Map.of(
+                    "count", payments.size(),
+                    "averageAmount", payments.isEmpty() ? 0.0 : Math.round((revenue / payments.size()) * 100.0) / 100.0
             ));
 
-            System.out.println("Final summary: " + summary);
-            System.out.println("=== END DEBUG ===");
+            // Expense breakdown
+            summary.put("expenses", Map.of(
+                    "totalRecorded", recordedExpenses,
+                    "expensesList", expensesList.stream()
+                            .map(e -> Map.of(
+                                    "id", e.getId(),
+                                    "name", e.getName(),
+                                    "amount", e.getAmount(),
+                                    "date", e.getExpenseDate()
+                            ))
+                            .collect(Collectors.toList())
+            ));
+
+            // Teacher info (informational only - not included in profit calculation)
+            summary.put("teacherInfo", Map.of(
+                    "totalTeachers", allTeachers.size(),
+                    "potentialMonthlySalaryCost", Math.round(potentialSalaryCost * 100.0) / 100.0,
+                    "note", "Salary costs are only included when admin records them as expenses"
+            ));
+
+            // Business metrics
+            summary.put("metrics", Map.of(
+                    "profitMargin", revenue == 0 ? 0.0 : Math.round((netProfit / revenue * 100) * 100.0) / 100.0,
+                    "expenseRatio", revenue == 0 ? 0.0 : Math.round((recordedExpenses / revenue * 100) * 100.0) / 100.0,
+                    "isProfitable", netProfit > 0
+            ));
+
+            // Simple recommendations
+            List<String> recommendations = new ArrayList<>();
+            if (netProfit < 0) {
+                recommendations.add("Business is operating at a loss based on recorded expenses.");
+            }
+            if (revenue == 0 && recordedExpenses > 0) {
+                recommendations.add("No revenue but expenses recorded. Focus on student enrollment.");
+            }
+            if (recordedExpenses == 0 && allTeachers.size() > 0) {
+                recommendations.add("No expenses recorded yet. Consider recording teacher salaries and utility costs.");
+            }
+
+            summary.put("recommendations", recommendations);
 
             return ResponseEntity.ok(summary);
 
@@ -237,6 +244,69 @@ public class AdminController {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Error calculating financial summary: " + e.getMessage()));
+        }
+    }
+
+    // NEW: Helper endpoint to pay teacher salaries
+    @Operation(summary = "Pay teacher salary", description = "Record a salary payment as an expense")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/pay-teacher-salary")
+    public ResponseEntity<Map<String, Object>> payTeacherSalary(
+            @RequestBody Map<String, Object> paymentRequest) {
+
+        try {
+            Long teacherId = Long.valueOf(paymentRequest.get("teacherId").toString());
+            String month = (String) paymentRequest.get("month");
+            Double customAmount = paymentRequest.containsKey("amount") ?
+                    Double.valueOf(paymentRequest.get("amount").toString()) : null;
+
+            // Get teacher details
+            Teacher teacher = teacherRepository.findById(teacherId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Teacher not found"));
+
+            // Check if already paid this month
+            if (expenseRepository.isTeacherPaidInMonth(teacherId, month)) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Teacher " + teacher.getName() + " already paid for " + month));
+            }
+
+            // Create salary expense
+            Expense salaryExpense = new Expense();
+            salaryExpense.setName("Salary payment - " + teacher.getName());
+            salaryExpense.setAmount(customAmount != null ? customAmount : teacher.getSalary());
+            salaryExpense.setCategory(Expense.ExpenseCategory.SALARY);
+            salaryExpense.setTeacherId(teacherId);
+            salaryExpense.setTeacherName(teacher.getName());
+            salaryExpense.setDescription("Monthly salary payment");
+
+            // Set dates
+            if (month == null || month.isEmpty()) {
+                month = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
+            }
+            salaryExpense.setExpenseMonth(month);
+            salaryExpense.setExpenseDate(LocalDate.now().toString());
+
+            Expense savedExpense = expenseRepository.save(salaryExpense);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Salary paid successfully");
+            response.put("teacher", Map.of(
+                    "id", teacher.getId(),
+                    "name", teacher.getName(),
+                    "salaryAmount", teacher.getSalary()
+            ));
+            response.put("payment", Map.of(
+                    "expenseId", savedExpense.getId(),
+                    "amount", savedExpense.getAmount(),
+                    "month", month,
+                    "date", savedExpense.getExpenseDate()
+            ));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to process salary payment: " + e.getMessage()));
         }
     }
 
